@@ -117,14 +117,14 @@ Worked examples:
 | Place | `live` slot | `history` slot | Years |
 |---|---|---|---|
 | Basel | SMN `BAS` | NBCN `BAS` homogenised | 1864+ |
-| Aarau | SMN `BUS` "Buchs / Aarau", ~4 km | SMN `BUS` measured | 1984+ (42 yrs) |
+| Aarau | SMN `BUS` "Buchs / Aarau", 2.8 km | SMN `BUS` measured | 1984+ (42 yrs) |
 | Schaffhausen | SMN `SHA` | SMN `SHA` measured | 1863+ |
 | Zermatt | Open-Meteo current | Open-Meteo archive | 1940+ |
 
 If a place cannot be geocoded, show name suggestions rather than an empty chart.
 
 The resolved plan carries a list of `caveats` (strings) which the UI renders verbatim in a
-`SourceNote` component — e.g. *"Live value measured at Buchs / Aarau, 4 km away, 387 m."*
+`SourceNote` component — e.g. *"Measured at Buchs / Aarau, 2.8 km away, 387 m."*
 
 ### Decision — no proxy series
 
@@ -166,7 +166,7 @@ Illustrative layout (the live figures are invented; only the 2018 record and the
 count are real):
 
 ```
-Aarau · now 26.3 °C            (Buchs / Aarau, 4 km, 14:20)
+Aarau · now 26.3 °C            (Buchs / Aarau, 2.8 km, 14:20)
 Day so far: max 27.1 °C, mean 21.4 °C · still in progress
 8th-warmest July 30 of 42 years · +1.4 °C vs the 1991–2020 norm
 Record max 34.1 °C (2018) · Lowest max 17.3 °C (1987)
