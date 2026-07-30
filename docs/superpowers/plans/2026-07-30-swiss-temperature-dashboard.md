@@ -33,7 +33,6 @@
 | `src/lib/geo.ts` | Haversine distance, nearest-station search. Pure. |
 | `src/lib/resolvePlace.ts` | Station + place → `SourcePlan` with caveats. Pure. |
 | `src/lib/sources/packedStation.ts` | Fetch `public/data/stations/<ABBR>.json` |
-| `src/lib/sources/dailyRecent.ts` | Fetch + merge current-year `_d_recent.csv` |
 | `src/lib/sources/smnLive.ts` | Fetch + parse `_t_now.csv` |
 | `src/lib/sources/openMeteo.ts` | Geocode, archive, current |
 | `src/components/*.tsx` | One component per file, presentational |
@@ -1478,7 +1477,7 @@ git commit -m "feat: aggregate 10-minute readings into a provisional day-so-far"
   - `haversineKm(a: LatLon, b: LatLon): number` where `LatLon = { lat: number; lon: number }`
   - `nearestStation(stations: StationIndexEntry[], to: LatLon): { station: StationIndexEntry; km: number } | null`
   - `LIVE_RADIUS_KM = 15`
-  - `resolveStation(station: StationIndexEntry, all: StationIndexEntry[]): SourcePlan`
+  - `resolveStation(station: StationIndexEntry): SourcePlan`
   - `resolveGeocoded(place: { name: string; lat: number; lon: number }, all: StationIndexEntry[]): SourcePlan`
 
 - [ ] **Step 1: Write the failing tests**
@@ -1575,7 +1574,7 @@ const all = [bas, bus];
 
 describe('resolveStation', () => {
   it('uses a homogenised station for both slots without a caveat about homogenisation', () => {
-    const plan = resolveStation(bas, all);
+    const plan = resolveStation(bas);
     expect(plan.historyStation?.abbr).toBe('BAS');
     expect(plan.liveStation?.abbr).toBe('BAS');
     expect(plan.liveDistanceKm).toBeCloseTo(0, 3);
@@ -1583,12 +1582,12 @@ describe('resolveStation', () => {
   });
 
   it('warns that a raw SMN series is not homogenised', () => {
-    const plan = resolveStation(bus, all);
+    const plan = resolveStation(bus);
     expect(plan.caveats.join(' ')).toMatch(/not homogenised/i);
   });
 
   it('labels the plan with the station name', () => {
-    expect(resolveStation(bus, all).label).toBe('Buchs / Aarau');
+    expect(resolveStation(bus).label).toBe('Buchs / Aarau');
   });
 });
 
@@ -1673,10 +1672,7 @@ function homogenisationCaveats(station: StationIndexEntry): string[] {
 }
 
 /** The user picked an official station, so both slots are that station. */
-export function resolveStation(
-  station: StationIndexEntry,
-  _all: StationIndexEntry[],
-): SourcePlan {
+export function resolveStation(station: StationIndexEntry): SourcePlan {
   return {
     label: station.name,
     historyStation: station,
@@ -2144,7 +2140,7 @@ git commit -m "feat: add build script producing packed station data for 149 stat
 ### Task 10: Runtime data sources
 
 **Files:**
-- Create: `src/lib/sources/stationIndex.ts`, `src/lib/sources/packedStation.ts`, `src/lib/sources/dailyRecent.ts`, `src/lib/sources/smnLive.ts`, `src/lib/sources/openMeteo.ts`
+- Create: `src/lib/sources/stationIndex.ts`, `src/lib/sources/packedStation.ts`, `src/lib/sources/smnLive.ts`, `src/lib/sources/openMeteo.ts`
 - Test: `src/lib/sources/sources.test.ts`
 
 **Interfaces:**
@@ -2545,21 +2541,12 @@ export async function openMeteoCurrent(
 }
 ```
 
-- [ ] **Step 6: Write `src/lib/sources/dailyRecent.ts` re-export**
-
-```ts
-// src/lib/sources/dailyRecent.ts
-// The recent-file merge lives with the packed loader because the two always
-// travel together; this module exists so callers can import it by intent.
-export { mergeRecent } from './packedStation';
-```
-
-- [ ] **Step 7: Run tests to verify they pass**
+- [ ] **Step 6: Run tests to verify they pass**
 
 Run: `npx vitest run src/lib/sources/sources.test.ts`
 Expected: all PASS.
 
-- [ ] **Step 8: Run the full suite and typecheck**
+- [ ] **Step 7: Run the full suite and typecheck**
 
 ```bash
 npm test
@@ -2568,7 +2555,7 @@ npx tsc -b
 
 Expected: all tests pass, no type errors.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add src/lib/sources/
@@ -3666,8 +3653,8 @@ export function App() {
   );
 
   const plan = useMemo(
-    () => (selected ? resolveStation(selected, index) : null),
-    [selected, index],
+    () => (selected ? resolveStation(selected) : null),
+    [selected],
   );
 
   if (indexError) return <main className="app"><p className="error">{indexError}</p></main>;
@@ -3886,10 +3873,14 @@ describe('openMeteoDaily', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails or passes**
+- [ ] **Step 2: Run the test**
 
 Run: `npx vitest run src/lib/sources/openMeteoSeries.test.ts`
-Expected: PASS — `openMeteoDaily` was written in Task 10. If it fails, fix `openMeteo.ts` to match these tests; they are the specification for it.
+
+This is deliberately **not** a red-green step: `openMeteoDaily` was written in Task 10
+without dedicated tests, and this file is its retroactive coverage. Expected: PASS. If any
+case fails, the test is the specification — fix `openMeteo.ts` to match it, do not weaken
+the test.
 
 - [ ] **Step 3: Add geocoded places to `PlacePicker`**
 
@@ -4047,7 +4038,7 @@ Change the `plan` memo to cover both cases:
 ```tsx
 const plan = useMemo(() => {
   if (place !== null) return resolveGeocoded(place, index);
-  return selected ? resolveStation(selected, index) : null;
+  return selected ? resolveStation(selected) : null;
 }, [place, selected, index]);
 ```
 
@@ -4133,7 +4124,9 @@ git commit -m "feat: fall back to Open-Meteo for places with no station within 1
 
 - [ ] **Step 1: Write `README.md`**
 
-```markdown
+Note the four-backtick outer fence: the README body contains its own ```bash blocks.
+
+````markdown
 # Swiss Temperature Dashboard
 
 Pick one of 149 MeteoSwiss stations and see today's temperature ranked against
@@ -4190,7 +4183,7 @@ npm test
 
 Fixtures in `tests/fixtures/` are trimmed real CSVs, regenerated with
 `npm run capture:fixtures`.
-```
+````
 
 - [ ] **Step 2: Run the production build**
 
