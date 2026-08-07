@@ -208,16 +208,20 @@ input[type='date'] { width: auto; }
   letter-spacing: 0;
 }
 
-/* The station is the page's subject, so it gets the one solid block of ink. */
+/* The station is the page's subject, so it gets the one solid block of ink.
+   Never wrapped — see the h1 sizing in layout.css for why. */
 .reading-place {
   background: var(--fg);
   color: var(--bg);
   font-weight: 550;
   padding: 0.1em 0.4em;
   margin-right: 0.15em;
+  white-space: nowrap;
 }
 
-.reading-now { color: var(--muted); }
+/* One reading, so it breaks as one thing: without this the phone leaves "· now"
+   dangling at the end of a line and puts the figure on the next. */
+.reading-now { color: var(--muted); white-space: nowrap; }
 
 .reading-provenance,
 .reading-records {

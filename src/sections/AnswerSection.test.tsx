@@ -42,19 +42,15 @@ describe('AnswerSection', () => {
           latest: { year: 2026, month: 7, day: 31, hour: 10, minute: 0, celsius: 27 },
         }}
         headline={emptyHeadline}
-        placeLabel="Zürich / Fluntern"
         viewedDateLabel="31 July"
         metric="mean"
-        liveStationName="Zürich / Fluntern"
-        liveDistanceKm={0}
         today="2026-07-31"
       />,
     );
     expect(screen.getByText('Day 4 of a heat wave')).toBeInTheDocument();
-    // placeLabel and liveStationName are both "Zürich / Fluntern" here, so the
-    // card legitimately renders the string twice (heading + provenance line);
-    // getAllByText confirms it appears rather than asserting a single match.
-    expect(screen.getAllByText(/Zürich \/ Fluntern/).length).toBeGreaterThan(0);
+    // The day's own figures. Which station this is now belongs to the masthead,
+    // so the column no longer repeats it — see StationBar.
+    expect(screen.getByText(/Day so far/)).toBeInTheDocument();
   });
 
   it('shows an explanatory message instead of tiles when there is no station', () => {
@@ -64,11 +60,8 @@ describe('AnswerSection', () => {
         isPlace={false}
         effectiveSoFar={null}
         headline={emptyHeadline}
-        placeLabel="Somewhere remote"
         viewedDateLabel="31 July"
         metric="mean"
-        liveStationName={null}
-        liveDistanceKm={null}
         today="2026-07-31"
       />,
     );
@@ -82,11 +75,8 @@ describe('AnswerSection', () => {
         isPlace={true}
         effectiveSoFar={null}
         headline={emptyHeadline}
-        placeLabel="Susch"
         viewedDateLabel="31 July"
         metric="mean"
-        liveStationName={null}
-        liveDistanceKm={null}
         today="2026-07-31"
       />,
     );

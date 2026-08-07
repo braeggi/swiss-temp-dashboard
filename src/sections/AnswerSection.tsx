@@ -14,12 +14,9 @@ export interface AnswerSectionProps {
   isPlace: boolean;
   effectiveSoFar: DaySoFar | null;
   headline: Headline;
-  placeLabel: string;
   /** The date currently selected in the day-evidence section — may be a past date. */
   viewedDateLabel: string;
   metric: Metric;
-  liveStationName: string | null;
-  liveDistanceKm: number | null;
   today: string;
 }
 
@@ -28,11 +25,8 @@ export function AnswerSection({
   isPlace,
   effectiveSoFar,
   headline,
-  placeLabel,
   viewedDateLabel,
   metric,
-  liveStationName,
-  liveDistanceKm,
   today,
 }: AnswerSectionProps) {
   const answer = useMemo(() => {
@@ -78,13 +72,10 @@ export function AnswerSection({
       )}
 
       <CurrentReadingCard
-        placeLabel={placeLabel}
         dateLabel={viewedDateLabel}
         metric={metric}
         headline={headline}
         soFar={effectiveSoFar}
-        liveStationName={liveStationName}
-        liveDistanceKm={liveDistanceKm}
       />
 
       {answer !== null ? (

@@ -1,7 +1,7 @@
 // src/App.tsx
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import { useDashboardState } from './hooks/useDashboardState';
-import { PlacePicker } from './components/PlacePicker';
+import { StationBar } from './components/StationBar';
 import { LazyOnVisible } from './components/LazyOnVisible';
 import { AnswerSection } from './sections/AnswerSection';
 import { SourceNote } from './components/SourceNote';
@@ -65,20 +65,23 @@ export function App() {
   return (
     <main className="app">
       <header className="masthead">
-        <h1>Swiss heat — how bad is it right now?</h1>
-      </header>
-
-      {/* The answer column. It stays put while the evidence scrolls past, so the
-          verdict is still on screen when you are halfway through the working. */}
-      <div className="rail">
-        <PlacePicker
+        <StationBar
+          placeLabel={s.plan?.label ?? s.selected?.name ?? '—'}
+          historyStation={s.plan?.historyStation ?? s.selected}
+          liveStationName={s.plan?.liveStation?.name ?? null}
+          liveDistanceKm={s.plan?.liveDistanceKm ?? null}
+          soFar={s.isToday ? s.effectiveSoFar : null}
           index={s.index}
           selected={s.selected}
           onSelect={s.selectStation}
           onSelectPlace={s.setPlace}
           searchPlaces={s.geocodeSearch}
         />
+      </header>
 
+      {/* The answer column. It stays put while the evidence scrolls past, so the
+          verdict is still on screen when you are halfway through the working. */}
+      <div className="rail">
         {s.loading && <p className="status">Loading {s.selected?.name}…</p>}
         {s.error && <p className="error">{s.error}</p>}
         {s.liveStale && s.isToday && (
@@ -94,11 +97,8 @@ export function App() {
               isPlace={s.place !== null}
               effectiveSoFar={s.isToday ? s.effectiveSoFar : null}
               headline={s.headline}
-              placeLabel={s.plan.label}
               viewedDateLabel={s.dateLabel}
               metric={s.metric}
-              liveStationName={s.plan.liveStation?.name ?? null}
-              liveDistanceKm={s.plan.liveDistanceKm}
               today={s.today}
             />
 

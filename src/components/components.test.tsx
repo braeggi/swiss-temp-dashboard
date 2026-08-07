@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ChartTooltip, DayAcrossYearsChart } from './DayAcrossYearsChart';
 import { DateControl } from './DateControl';
+import { StationBar } from './StationBar';
 import { WarmingStripesChart } from './WarmingStripes';
 import { CurrentReadingCard } from './CurrentReadingCard';
 import { SourceNote } from './SourceNote';
@@ -166,31 +167,61 @@ describe('ChartTooltip', () => {
   });
 });
 
-describe('CurrentReadingCard', () => {
-  const base = {
-    placeLabel: 'Aarau',
-    dateLabel: '31 July',
-    metric: 'mean' as const,
-    liveStationName: 'Buchs / Aarau',
-    liveDistanceKm: 2.8,
-  };
+describe('StationBar', () => {
+  const bar = (over: Partial<React.ComponentProps<typeof StationBar>> = {}) => (
+    <StationBar
+      placeLabel="Aarau"
+      historyStation={station}
+      liveStationName="Buchs / Aarau"
+      liveDistanceKm={2.8}
+      soFar={soFar}
+      index={[station]}
+      selected={station}
+      onSelect={() => {}}
+      onSelectPlace={() => {}}
+      searchPlaces={async () => []}
+      {...over}
+    />
+  );
 
-  it('separates the instantaneous reading from the provisional aggregate', () => {
-    const { container } = render(
-      <CurrentReadingCard {...base} headline={headline()} soFar={soFar} />,
-    );
-    // 26.3 is the latest instantaneous reading; 30 is the day's running max.
+  it('carries the place, its reading right now, and how deep its record runs', () => {
+    const { container } = render(bar());
+    // 26.3 is the latest instantaneous reading; the day's running max is 30,
+    // and that one belongs to the answer column, not up here.
+    expect(container).toHaveTextContent('Aarau');
     expect(container).toHaveTextContent('now 26.3 °C');
-    expect(container).toHaveTextContent(/Day so far/);
-    expect(container).toHaveTextContent(/still in progress/);
+    expect(container).toHaveTextContent('387 m');
+    expect(container).toHaveTextContent('since 1984');
+    expect(container).not.toHaveTextContent(/Day so far/);
   });
 
   it('discloses that the reading comes from a station 2.8 km away', () => {
+    const { container } = render(bar());
+    expect(container).toHaveTextContent('Buchs / Aarau');
+    expect(container).toHaveTextContent('2.8 km');
+  });
+
+  // Most stations report their own live values, and repeating the name would
+  // read as two places rather than one.
+  it('does not name the live station when it is the place itself', () => {
+    const { container } = render(bar({ placeLabel: 'Buchs / Aarau' }));
+    expect(container.textContent!.match(/Buchs \/ Aarau/g)).toHaveLength(1);
+    expect(container).not.toHaveTextContent('2.8 km');
+  });
+});
+
+describe('CurrentReadingCard', () => {
+  const base = {
+    dateLabel: '31 July',
+    metric: 'mean' as const,
+  };
+
+  it('reports the day as far as it has got', () => {
     const { container } = render(
       <CurrentReadingCard {...base} headline={headline()} soFar={soFar} />,
     );
-    expect(container).toHaveTextContent('Buchs / Aarau');
-    expect(container).toHaveTextContent('2.8 km');
+    expect(container).toHaveTextContent(/Day so far/);
+    expect(container).toHaveTextContent(/still in progress/);
   });
 
   it('degrades to "no comparable reading" instead of rendering a null rank', () => {

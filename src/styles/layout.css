@@ -22,6 +22,8 @@ body {
   grid-template-areas: 'mast' 'rail' 'stream';
 }
 
+/* The masthead carries the frame the whole page hangs in — which place this is
+   and the one control that changes it — rather than a title. */
 .masthead {
   grid-area: mast;
   border-bottom: var(--rule-w) solid var(--rule);
@@ -29,12 +31,38 @@ body {
   margin-bottom: var(--s5);
 }
 
+.station-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s3) var(--s5);
+}
+
+.station-id { min-width: 0; }
+
+/* Scaled to the viewport because the chip must never break: a wrapped inverted
+   block splits into two floating slabs and reads as two places. The floor is
+   set by the longest name in the network, "Bischofszell / Sitterdorf" at 25
+   characters, which has to fit a 320px phone whole. */
 .masthead h1 {
   margin: 0;
-  font-size: var(--t-lg);
-  font-weight: 600;
-  letter-spacing: var(--track-tight);
+  font-size: clamp(1.05rem, 4.2vw, var(--t-xl));
+  font-weight: 400;
+  letter-spacing: 0;
 }
+
+.station-meta {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--muted);
+}
+
+/* Wide enough to read a station name in, but it must not push the identity
+   off its own line on a laptop. */
+.station-bar .place-picker { margin: 0; flex: 0 1 18rem; min-width: 12rem; }
 
 .rail { grid-area: rail; }
 .stream { grid-area: stream; min-width: 0; }
@@ -81,8 +109,10 @@ body {
 .stream > * + * { margin-top: var(--s6); }
 
 /* The masthead rule (or, stacked, the column's closing rule) already divides
-   here. A second rule 18px below it reads as a stutter, not as structure. */
+   here. A second rule 18px below it reads as a stutter, not as structure. The
+   same applies to whichever block opens the answer column. */
 .stream > *:first-child .evidence { border-top: 0; padding-top: 0; }
+.rail > .answer-section:first-child .heat-headline { border-top: 0; padding-top: 0; }
 
 .evidence h2 {
   margin: 0 0 var(--s3);
@@ -108,7 +138,7 @@ body {
 }
 
 .controls label,
-.rail .place-picker label {
+.place-picker label {
   display: block;
   font-size: var(--t-label);
   text-transform: uppercase;

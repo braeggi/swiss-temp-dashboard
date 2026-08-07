@@ -1,5 +1,5 @@
 import type { Metric } from '../types';
-import { formatZurichTime, type DaySoFar } from '../lib/dayAggregate';
+import type { DaySoFar } from '../lib/dayAggregate';
 import { ordinal, type Headline } from '../lib/headline';
 
 const METRIC_WORD: Record<Metric, string> = {
@@ -14,45 +14,30 @@ const fmt = (n: number) => `${n.toFixed(1)} °C`;
 const signed = (n: number) => `${n >= 0 ? '+' : '−'}${Math.abs(n).toFixed(1)} °C`;
 
 export interface CurrentReadingCardProps {
-  placeLabel: string;
   dateLabel: string;
   metric: Metric;
   headline: Headline;
   soFar: DaySoFar | null;
-  liveStationName: string | null;
-  liveDistanceKm: number | null;
   /** False where a single-day ranking is not the question being asked. */
   showVerdict?: boolean;
 }
 
+/**
+ * What the viewed day amounts to: how it ranks, how far it sits from normal,
+ * and the records it is measured against.
+ *
+ * Which station this is, and what it reads at this minute, belong to the
+ * masthead — they frame every section of the page, not just this one.
+ */
 export function CurrentReadingCard({
-  placeLabel,
   dateLabel,
   metric,
   headline,
   soFar,
-  liveStationName,
-  liveDistanceKm,
   showVerdict = true,
 }: CurrentReadingCardProps) {
-  const latest = soFar?.latest;
-  const clock = latest ? formatZurichTime(latest) : null;
-
   return (
     <section className="reading-card">
-      <h2>
-        <span className="reading-place">{placeLabel}</span>
-        {latest && <span className="reading-now"> · now {fmt(latest.celsius)}</span>}
-      </h2>
-
-      {liveStationName && (
-        <p className="reading-provenance">
-          {liveStationName}
-          {liveDistanceKm !== null && liveDistanceKm > 0 && <> · {liveDistanceKm} km</>}
-          {clock && <> · {clock}</>}
-        </p>
-      )}
-
       {soFar && (
         <p className="reading-sofar">
           Day so far: max {fmt(soFar.max)}, mean {fmt(soFar.mean)}, min {fmt(soFar.min)}
