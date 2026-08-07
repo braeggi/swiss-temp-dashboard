@@ -1,283 +1,173 @@
 // src/App.tsx
-import { useEffect, useMemo, useState } from 'react';
-import type { Metric, StationIndexEntry } from './types';
-import { loadStationIndex } from './lib/sources/stationIndex';
-import { useStationSeries } from './hooks/useStationSeries';
-import { dayAcrossYears, dayAcrossYearsWindowed, normDeviation } from './lib/series';
-import { buildHeadline } from './lib/headline';
-import { resolveStation } from './lib/resolvePlace';
-import { formatDayLabel, isIsoDate, parseIso, todayIso } from './lib/dateUtil';
-import { buildUrlSearch, parseUrlState } from './lib/urlState';
-import { geocode, openMeteoDaily } from './lib/sources/openMeteo';
-import { resolveGeocoded } from './lib/resolvePlace';
-import type { DayPoint } from './types';
-import type { GeocodedPlace } from './components/PlacePicker';
+import { lazy, Suspense, useEffect, useRef } from 'react';
+import { useDashboardState } from './hooks/useDashboardState';
 import { PlacePicker } from './components/PlacePicker';
-import { DateControl } from './components/DateControl';
-import { MetricToggle } from './components/MetricToggle';
-import { WindowToggle, type WindowDays } from './components/WindowToggle';
-import { ViewToggle, type ViewMode } from './components/ViewToggle';
-import { YearOverviewChart } from './components/YearOverviewChart';
-import { ThresholdChart } from './components/ThresholdChart';
-import { ThresholdToggle } from './components/ThresholdToggle';
-import { thresholdDays, type ThresholdKey } from './lib/thresholdDays';
-import { yearOverview } from './lib/yearOverview';
-import { CurrentReadingCard } from './components/CurrentReadingCard';
-import { DayAcrossYearsChart } from './components/DayAcrossYearsChart';
+import { LazyOnVisible } from './components/LazyOnVisible';
+import { AnswerSection } from './sections/AnswerSection';
 import { SourceNote } from './components/SourceNote';
+import { parseIso } from './lib/dateUtil';
+import type { ViewMode } from './components/ViewToggle';
 import './styles.css';
 
-const DEFAULT_STATION = 'SMA'; // Zürich / Fluntern
+const DayEvidence = lazy(() => import('./sections/DayEvidence'));
+const YearEvidence = lazy(() => import('./sections/YearEvidence'));
+const TrendEvidence = lazy(() => import('./sections/TrendEvidence'));
+const StripesEvidence = lazy(() => import('./sections/StripesEvidence'));
+
+const SECTION_ID: Record<ViewMode, string> = {
+  day: 'evidence-day',
+  year: 'evidence-year',
+  threshold: 'evidence-trend',
+};
 
 export function App() {
-  const today = todayIso();
-  // Read once at mount. Every field is validated inside parseUrlState, so a
-  // truncated or hand-edited link degrades field-by-field instead of failing
-  // whole — and an impossible date can no longer reach the render path.
-  const [initialUrl] = useState(() => parseUrlState(window.location.search));
+  const s = useDashboardState();
+  const scrolledToLegacyView = useRef(false);
 
-  const [index, setIndex] = useState<StationIndexEntry[]>([]);
-  const [indexError, setIndexError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<StationIndexEntry | null>(null);
-  const [date, setDate] = useState(initialUrl.date ?? today);
-  const [metric, setMetric] = useState<Metric>(initialUrl.metric ?? 'mean');
-  const [windowDays, setWindowDays] = useState<WindowDays>(initialUrl.windowDays ?? 0);
-  const [view, setView] = useState<ViewMode>(initialUrl.view ?? 'day');
-  const [threshold, setThreshold] = useState<ThresholdKey>(initialUrl.threshold ?? 'hotDays');
-  const [place, setPlace] = useState<GeocodedPlace | null>(
-    initialUrl.place ? { ...initialUrl.place, altitude: 0 } : null,
-  );
-  const [placePoints, setPlacePoints] = useState<Record<Metric, DayPoint[]> | null>(null);
-
-  // Belt-and-braces: `date` must never hold a non-ISO value, since parseIso
-  // and formatDayLabel below assume it unconditionally. DateControl already
-  // filters at the source, but the invariant belongs where the state lives —
-  // any future caller of this setter gets the same protection for free.
-  const handleDateChange = (iso: string) => {
-    if (isIsoDate(iso)) setDate(iso);
-  };
-
+  // An old ?view=... link should land the reader at the right section once.
+  // The address-bar sync effect inside useDashboardState never writes `view`
+  // back, so it does not reappear after this.
   useEffect(() => {
-    loadStationIndex()
-      .then((idx) => {
-        setIndex(idx);
-        // A link may name a station that no longer exists (the index is rebuilt
-        // from upstream), so fall through to the default rather than showing
-        // an empty dashboard. A link naming a place instead leaves `selected`
-        // as the default underneath, which the place branch renders over.
-        const fromUrl =
-          initialUrl.station === undefined
-            ? undefined
-            : idx.find((s) => s.abbr === initialUrl.station);
-        setSelected(fromUrl ?? idx.find((s) => s.abbr === DEFAULT_STATION) ?? idx[0] ?? null);
-      })
-      .catch((e: unknown) =>
-        setIndexError(
-          `Could not load the station index — did you run "npm run build:data"? (${
-            e instanceof Error ? e.message : String(e)
-          })`,
-        ),
-      );
-  }, []);
+    if (s.legacyView === undefined || scrolledToLegacyView.current) return;
+    const targetId = SECTION_ID[s.legacyView];
 
-  const { station, soFar, liveStale, loading, error } = useStationSeries(
-    selected?.abbr ?? null,
-  );
-  const { month, day } = parseIso(date);
-  const isToday = date === today;
-
-  // Keep the address bar in step with the current selection so the page is
-  // always linkable. replaceState, not pushState: the back button should leave
-  // the app, not walk back through every metric toggle.
-  useEffect(() => {
-    if (index.length === 0) return; // pre-hydration; don't clobber the incoming link
-    const search = buildUrlSearch({
-      stationAbbr: place === null ? (selected?.abbr ?? null) : null,
-      place: place === null ? null : { name: place.name, lat: place.lat, lon: place.lon },
-      date,
-      today,
-      metric,
-      windowDays,
-      view,
-      threshold,
-    });
-    const next = `${window.location.pathname}${search}`;
-    if (next !== `${window.location.pathname}${window.location.search}`) {
-      window.history.replaceState(null, '', next);
-    }
-  }, [index.length, selected, place, date, metric, windowDays, view, threshold, today]);
-
-  // A geocoded place has no station file, so fetch its series from Open-Meteo.
-  useEffect(() => {
-    if (place === null) {
-      setPlacePoints(null);
-      return;
-    }
-    let cancelled = false;
-    const { year } = parseIso(date);
-    openMeteoDaily(place.lat, place.lon, month, day, year)
-      .then((r) => !cancelled && setPlacePoints(r))
-      .catch(() => !cancelled && setPlacePoints(null));
-    return () => {
-      cancelled = true;
+    const tryScroll = () => {
+      const el = document.getElementById(targetId);
+      if (el === null) return false;
+      el.scrollIntoView({ behavior: 'auto' });
+      scrolledToLegacyView.current = true;
+      return true;
     };
-  }, [place, month, day, date]);
 
-  const points = useMemo(() => {
-    // Open-Meteo is fetched one calendar day at a time, so a geocoded place has
-    // no neighbouring days to average — the control is disabled for it rather
-    // than silently returning an unsmoothed series.
-    if (place !== null) return placePoints?.[metric] ?? [];
-    if (!station) return [];
-    return windowDays === 0
-      ? dayAcrossYears(station, month, day, metric)
-      : dayAcrossYearsWindowed(station, month, day, metric, windowDays);
-  }, [place, placePoints, station, month, day, metric, windowDays]);
+    if (tryScroll()) return;
 
-  const selectedYearValue = useMemo(() => {
-    if (isToday) return null;
-    const { year } = parseIso(date);
-    return points.find((p) => p.year === year)?.value ?? null;
-  }, [isToday, date, points]);
+    // The lazy-loaded evidence sections mount once their chunk resolves,
+    // which happens independently of any state change in this component —
+    // React re-renders from the Suspense boundary down, not from App, so no
+    // prop/state dependency can catch that moment. Watch the DOM directly
+    // instead: it fires on the station-index load mounting the section
+    // shell AND, separately, on the lazy chunk swapping in the real content.
+    const observer = new MutationObserver(() => {
+      if (tryScroll()) observer.disconnect();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [s.legacyView]);
 
-  // A geocoded place has no live station feed of its own, so the day-so-far
-  // reading — which belongs to whichever station happens to be loaded — must
-  // not leak into its headline ranking, even though it's already withheld
-  // from display.
-  const effectiveSoFar = place === null ? soFar : null;
-
-  const headline = useMemo(
-    () =>
-      buildHeadline({
-        points,
-        soFar: effectiveSoFar,
-        metric,
-        isToday,
-        selectedYearValue,
-        windowDays: place === null ? windowDays : 0,
-      }),
-    [points, effectiveSoFar, metric, isToday, selectedYearValue, place, windowDays],
-  );
-
-  // What to PLOT for today is not the same question as what to RANK. The rank is
-  // withheld while a window is active (an unsmoothed day cannot be scored against
-  // smoothed history) and until enough readings exist — but the measurement is
-  // real either way, and hiding the marker just loses the user their own day.
-  const todayMarkerValue = effectiveSoFar === null ? null : effectiveSoFar[metric];
-
-  const yearDays = useMemo(() => {
-    // Only station data has a full year to summarise; a geocoded place is
-    // fetched one calendar day at a time, so the year view is disabled for it.
-    if (view !== 'year' || place !== null || !station) return null;
-    return yearOverview(station, metric, parseIso(date).year);
-  }, [view, place, station, metric, date]);
-
-  // The headline says "+6.3 °C vs the 1991-2020 norm"; the chart should show the
-  // line that number is measured from, rather than making the reader hold it in
-  // their head. Derived from the same helper so the two can't disagree.
-  const dayNorm = useMemo(() => {
-    if (points.length === 0) return null;
-    const d = normDeviation(points, 0);
-    return d === null ? null : -d;
-  }, [points]);
-
-  const thresholdRows = useMemo(() => {
-    // Station data only: a geocoded place has one calendar day, not a record.
-    if (view !== 'threshold' || place !== null || !station) return null;
-    return thresholdDays(station, threshold);
-  }, [view, place, station, threshold]);
-
-  const plan = useMemo(() => {
-    if (place !== null) return resolveGeocoded(place, index);
-    return selected ? resolveStation(selected) : null;
-  }, [place, selected, index]);
-
-  if (indexError) return <main className="app"><p className="error">{indexError}</p></main>;
+  if (s.indexError) {
+    return (
+      <main className="app">
+        <p className="error">{s.indexError}</p>
+      </main>
+    );
+  }
 
   return (
     <main className="app">
-      <header>
-        <h1>Swiss temperature — this day in history</h1>
+      <header className="masthead">
+        <h1>Swiss heat — how bad is it right now?</h1>
       </header>
 
-      <div className="controls">
+      {/* The answer column. It stays put while the evidence scrolls past, so the
+          verdict is still on screen when you are halfway through the working. */}
+      <div className="rail">
         <PlacePicker
-          index={index}
-          selected={selected}
-          onSelect={(s) => {
-            setPlace(null);
-            setSelected(s);
-          }}
-          onSelectPlace={setPlace}
-          searchPlaces={(q) => geocode(q)}
+          index={s.index}
+          selected={s.selected}
+          onSelect={s.selectStation}
+          onSelectPlace={s.setPlace}
+          searchPlaces={s.geocodeSearch}
         />
-        {view !== 'threshold' && (
-          <DateControl value={date} today={today} onChange={handleDateChange} />
+
+        {s.loading && <p className="status">Loading {s.selected?.name}…</p>}
+        {s.error && <p className="error">{s.error}</p>}
+        {s.liveStale && s.isToday && (
+          <p className="status">
+            This station's live feed has not reported in over two hours — showing history only.
+          </p>
         )}
-        {view !== 'threshold' && <MetricToggle value={metric} onChange={setMetric} />}
-        <ViewToggle value={view} onChange={setView} disabled={place !== null} />
-        {view === 'day' && (
-          <WindowToggle value={windowDays} onChange={setWindowDays} disabled={place !== null} />
-        )}
-        {view === 'threshold' && place === null && (
-          <ThresholdToggle value={threshold} onChange={setThreshold} />
+
+        {s.plan && (s.place !== null || s.station) && (
+          <>
+            <AnswerSection
+              station={s.station}
+              isPlace={s.place !== null}
+              effectiveSoFar={s.isToday ? s.effectiveSoFar : null}
+              headline={s.headline}
+              placeLabel={s.plan.label}
+              viewedDateLabel={s.dateLabel}
+              metric={s.metric}
+              liveStationName={s.plan.liveStation?.name ?? null}
+              liveDistanceKm={s.plan.liveDistanceKm}
+              today={s.today}
+            />
+
+            <SourceNote plan={s.plan} usesOpenMeteo={s.place !== null} />
+          </>
         )}
       </div>
 
-      {loading && <p className="status">Loading {selected?.name}…</p>}
-      {error && <p className="error">{error}</p>}
-      {liveStale && isToday && (
-        <p className="status">
-          This station's live feed has not reported in over two hours — showing history only.
-        </p>
-      )}
+      <div className="stream">
+        {s.plan && (s.place !== null || s.station) && (
+          <>
+            <LazyOnVisible forceVisible={s.legacyView === 'day'}>
+              <Suspense fallback={<p className="status">Loading chart…</p>}>
+                <DayEvidence
+                  date={s.date}
+                  today={s.today}
+                  onDateChange={s.setDate}
+                  metric={s.metric}
+                  onMetricChange={s.setMetric}
+                  windowDays={s.windowDays}
+                  onWindowChange={s.setWindowDays}
+                  windowDisabled={s.place !== null}
+                  points={s.points}
+                  dateLabel={s.dateLabel}
+                  todayValue={s.isToday ? s.todayMarkerValue : s.selectedYearValue}
+                  todayYear={parseIso(s.isToday ? s.today : s.date).year}
+                  homogenised={s.station?.homogenised ?? false}
+                  norm={s.dayNorm}
+                />
+              </Suspense>
+            </LazyOnVisible>
 
-      {plan && (place !== null || station) && (
-        <>
-          <CurrentReadingCard
-            placeLabel={plan.label}
-            dateLabel={formatDayLabel(date)}
-            metric={metric}
-            headline={headline}
-            soFar={isToday ? effectiveSoFar : null}
-            liveStationName={plan.liveStation?.name ?? null}
-            liveDistanceKm={plan.liveDistanceKm}
-            /* The live reading is current state and belongs in every view. The
-               rank against one calendar day does not — the threshold view has no
-               date dimension at all, so showing "4th-warmest 31 July" there
-               answers a question the page isn't asking. */
-            showVerdict={view !== 'threshold'}
-          />
+            <LazyOnVisible forceVisible={s.legacyView === 'year'}>
+              <Suspense fallback={<p className="status">Loading chart…</p>}>
+                <YearEvidence
+                  station={s.station}
+                  isPlace={s.place !== null}
+                  year={parseIso(s.date).year}
+                  homogenised={s.station?.homogenised ?? false}
+                />
+              </Suspense>
+            </LazyOnVisible>
 
-          {thresholdRows !== null ? (
-            <ThresholdChart
-              rows={thresholdRows}
-              threshold={threshold}
-              homogenised={station?.homogenised ?? false}
-            />
-          ) : yearDays !== null ? (
-            <YearOverviewChart
-              days={yearDays}
-              metric={metric}
-              year={parseIso(date).year}
-              homogenised={station?.homogenised ?? false}
-            />
-          ) : (
-          <DayAcrossYearsChart
-            points={points}
-            metric={metric}
-            dateLabel={formatDayLabel(date)}
-            todayValue={isToday ? todayMarkerValue : selectedYearValue}
-            todayYear={parseIso(isToday ? today : date).year}
-            homogenised={station?.homogenised ?? false}
-            windowDays={place === null ? windowDays : 0}
-            norm={dayNorm}
-          />
-          )}
+            <LazyOnVisible forceVisible={s.legacyView === 'threshold'}>
+              <Suspense fallback={<p className="status">Loading chart…</p>}>
+                <TrendEvidence
+                  station={s.station}
+                  isPlace={s.place !== null}
+                  threshold={s.threshold}
+                  onThresholdChange={s.setThreshold}
+                  homogenised={s.station?.homogenised ?? false}
+                />
+              </Suspense>
+            </LazyOnVisible>
 
-          <SourceNote plan={plan} usesOpenMeteo={place !== null} />
-        </>
-      )}
+            {/* Last, because it is the widest lens: one bar per year, the whole
+                record at once, no axis to read. */}
+            <LazyOnVisible>
+              <Suspense fallback={<p className="status">Loading chart…</p>}>
+                <StripesEvidence
+                  station={s.station}
+                  isPlace={s.place !== null}
+                  homogenised={s.station?.homogenised ?? false}
+                />
+              </Suspense>
+            </LazyOnVisible>
+          </>
+        )}
+      </div>
     </main>
   );
 }

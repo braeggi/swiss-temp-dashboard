@@ -1,5 +1,5 @@
-import type { PackedStation } from '../types';
-import { SLOTS_PER_YEAR, decodeValue } from './packed';
+import type { Metric, PackedStation } from '../types';
+import { SLOTS_PER_YEAR, decodeValue, metricArray, slotOfYear } from './packed';
 
 /**
  * The standard Swiss threshold-day definitions.
@@ -40,12 +40,44 @@ export const isThresholdKey = (s: string): s is ThresholdKey =>
  */
 export const MIN_DAYS_FOR_YEAR = 330;
 
+/**
+ * The share of days a year must carry to be counted, taken from the existing
+ * whole-year rule rather than invented again. Deriving it means the two
+ * cannot drift apart when one is tuned.
+ */
+export const MIN_COVERAGE_RATIO = MIN_DAYS_FOR_YEAR / SLOTS_PER_YEAR;
+
 export interface ThresholdYear {
   year: number;
   /** Days with a usable reading for the metric this threshold needs. */
   daysWithData: number;
   /** Null when the year is too incomplete to count honestly. */
   count: number | null;
+}
+
+export interface YearToDate {
+  year: number;
+  /** Threshold days from 1 January through the cutoff. Null when too sparse. */
+  days: number | null;
+  daysWithData: number;
+}
+
+/** Count readings and threshold hits over slots 0..lastSlot of one year. */
+function countThroughSlot(
+  arr: number[],
+  base: number,
+  lastSlot: number,
+  test: (v: number) => boolean,
+): { daysWithData: number; hits: number } {
+  let daysWithData = 0;
+  let hits = 0;
+  for (let s = 0; s <= lastSlot; s++) {
+    const v = decodeValue(arr[base + s]);
+    if (v === null) continue;
+    daysWithData++;
+    if (test(v)) hits++;
+  }
+  return { daysWithData, hits };
 }
 
 /**
@@ -56,27 +88,69 @@ export interface ThresholdYear {
  * threshold series is shorter than the station's mean series — that is missing
  * history, not a bug, and the caller should surface the real span.
  */
-export function thresholdDays(st: PackedStation, key: ThresholdKey): ThresholdYear[] {
-  const spec = THRESHOLDS.find((t) => t.key === key);
-  if (spec === undefined) throw new Error(`Unknown threshold: ${key}`);
-  const arr = spec.metric === 'max' ? st.max : st.min;
+/**
+ * Per-year counts of days satisfying an arbitrary predicate.
+ *
+ * The generic half of `thresholdDays`, split out so a caller with its own
+ * threshold — the reader's day compared against history, say — gets the same
+ * completeness rule rather than a second copy of it that can drift.
+ */
+export function countByYear(
+  st: PackedStation,
+  metric: Metric,
+  test: (v: number) => boolean,
+): ThresholdYear[] {
+  // Was a two-way ternary, which silently fell through to `min` for any
+  // metric that is not `max`. metricArray covers all three exhaustively, so
+  // adding a mean-based threshold can no longer read the wrong series.
+  const arr = metricArray(st, metric);
 
   const out: ThresholdYear[] = [];
   for (let year = st.fromYear; year <= st.toYear; year++) {
     const base = (year - st.fromYear) * SLOTS_PER_YEAR;
-    let daysWithData = 0;
-    let hits = 0;
-    for (let s = 0; s < SLOTS_PER_YEAR; s++) {
-      const v = decodeValue(arr[base + s]);
-      if (v === null) continue;
-      daysWithData++;
-      if (spec.test(v)) hits++;
-    }
+    const { daysWithData, hits } = countThroughSlot(arr, base, SLOTS_PER_YEAR - 1, test);
     out.push({
       year,
       daysWithData,
       count: daysWithData >= MIN_DAYS_FOR_YEAR ? hits : null,
     });
+  }
+  return out;
+}
+
+export function thresholdDays(st: PackedStation, key: ThresholdKey): ThresholdYear[] {
+  const spec = THRESHOLDS.find((t) => t.key === key);
+  if (spec === undefined) throw new Error(`Unknown threshold: ${key}`);
+  return countByYear(st, spec.metric, spec.test);
+}
+
+/**
+ * Threshold days per year, counted only as far into the year as the cutoff.
+ *
+ * Comparing a year in progress against completed years is the single easiest
+ * way to mislead here: "27 hot days so far" beside "record 34" reads as
+ * comfortably short of the record, when the record year may have had 31 by
+ * the same date. Every year is therefore cut at the same calendar day.
+ */
+export function heatDaysToDate(
+  st: PackedStation,
+  throughMonth: number,
+  throughDay: number,
+  key: ThresholdKey,
+): YearToDate[] {
+  const spec = THRESHOLDS.find((t) => t.key === key);
+  if (spec === undefined) throw new Error(`Unknown threshold: ${key}`);
+  const arr = metricArray(st, spec.metric);
+
+  const lastSlot = slotOfYear(throughMonth, throughDay);
+  const elapsed = lastSlot + 1;
+  const needed = Math.ceil(elapsed * MIN_COVERAGE_RATIO);
+
+  const out: YearToDate[] = [];
+  for (let year = st.fromYear; year <= st.toYear; year++) {
+    const base = (year - st.fromYear) * SLOTS_PER_YEAR;
+    const { daysWithData, hits } = countThroughSlot(arr, base, lastSlot, spec.test);
+    out.push({ year, days: daysWithData >= needed ? hits : null, daysWithData });
   }
   return out;
 }

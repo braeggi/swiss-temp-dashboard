@@ -1,5 +1,8 @@
 import type { DayPoint, Metric, PackedStation } from '../types';
 import { SLOTS_PER_YEAR, decodeValue, metricArray, slotOfYear } from './packed';
+// Derived, not re-invented: a year is "complete enough" by exactly one rule in
+// this codebase, and an annual mean has the same stake in it as a day count.
+import { MIN_DAYS_FOR_YEAR } from './thresholdDays';
 
 export const MIN_YEARS_FOR_TREND = 30;
 export const MIN_YEARS_FOR_NORM = 20;
@@ -23,6 +26,31 @@ export function dayAcrossYears(
     const i = (year - st.fromYear) * SLOTS_PER_YEAR + slot;
     const v = decodeValue(arr[i]);
     if (v !== null) out.push({ year, value: v });
+  }
+  return out;
+}
+
+/**
+ * The mean of every daily mean, one point per complete year.
+ *
+ * The quantity the warming stripes encode. Incomplete years are dropped rather
+ * than averaged over what is there: a year missing its winter would come out
+ * warm, and the stripe would then be showing where the gaps are.
+ */
+export function annualMeans(st: PackedStation): DayPoint[] {
+  const arr = st.mean;
+  const out: DayPoint[] = [];
+  for (let year = st.fromYear; year <= st.toYear; year++) {
+    const base = (year - st.fromYear) * SLOTS_PER_YEAR;
+    let sum = 0;
+    let n = 0;
+    for (let s = 0; s < SLOTS_PER_YEAR; s++) {
+      const v = decodeValue(arr[base + s]);
+      if (v === null) continue;
+      sum += v;
+      n++;
+    }
+    if (n >= MIN_DAYS_FOR_YEAR) out.push({ year, value: sum / n });
   }
   return out;
 }

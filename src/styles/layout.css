@@ -1,0 +1,118 @@
+/* Page frame: a masthead across the top, then the answer on the left and the
+   evidence on the right. The left column stays put while the evidence scrolls,
+   so the verdict is never off screen while you read the working. */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: var(--t-md)/1.5 var(--font);
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  max-width: 96rem;
+  margin: 0 auto;
+  padding: 0 var(--s5) var(--s7);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'mast' 'rail' 'stream';
+}
+
+.masthead {
+  grid-area: mast;
+  border-bottom: var(--rule-w) solid var(--rule);
+  padding: var(--s5) 0 var(--s3);
+  margin-bottom: var(--s5);
+}
+
+.masthead h1 {
+  margin: 0;
+  font-size: var(--t-lg);
+  font-weight: 600;
+  letter-spacing: var(--track-tight);
+}
+
+.rail { grid-area: rail; }
+.stream { grid-area: stream; min-width: 0; }
+
+/* On a narrow screen the column becomes a header block: the same content in the
+   same order, just stacked, with a rule where the vertical hairline was. */
+.rail { padding-bottom: var(--s5); border-bottom: var(--rule-w) solid var(--rule); }
+.stream { padding-top: var(--s5); }
+
+@media (min-width: 64rem) {
+  .app {
+    grid-template-columns: minmax(17rem, 21rem) minmax(0, 1fr);
+    grid-template-areas:
+      'mast mast'
+      'rail stream';
+  }
+
+  .rail {
+    /* No `overflow` here on purpose. The place picker's result list is
+       absolutely positioned, and a scroll container would clip it. The column
+       is short enough to scroll with the page when it does overflow. */
+    position: sticky;
+    top: var(--s5);
+    align-self: start;
+    padding: 0 var(--s6) 0 0;
+    border-bottom: 0;
+  }
+
+  /* The divider hangs off the taller column, so it runs the full height of the
+     evidence rather than stopping where the answer ends. */
+  .stream {
+    padding: 0 0 0 var(--s6);
+    border-left: var(--hair) solid var(--line);
+  }
+}
+
+/* Each block opens with the structural rule. That beat — rule, versal label,
+   content — is the page's whole grammar. */
+.evidence { border-top: var(--rule-w) solid var(--rule); padding-top: var(--s3); }
+
+/* Spacing goes on the wrappers, not between the sections: every evidence
+   section sits inside its own LazyOnVisible div, so the sections are never
+   each other's siblings and an `.evidence + .evidence` rule never matches. */
+.stream > * + * { margin-top: var(--s6); }
+
+/* The masthead rule (or, stacked, the column's closing rule) already divides
+   here. A second rule 18px below it reads as a stutter, not as structure. */
+.stream > *:first-child .evidence { border-top: 0; padding-top: 0; }
+
+.evidence h2 {
+  margin: 0 0 var(--s3);
+  font-size: var(--t-lg);
+  font-weight: 600;
+  letter-spacing: var(--track-tight);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s4);
+  align-items: flex-start;
+  margin-bottom: var(--s4);
+}
+
+/* Every control in the row is label-over-control, so they line up from the top.
+   The metric toggle is the exception — it carries its name in aria-label and
+   shows none — so it gets the missing label's height back, or it would ride up
+   above its neighbours. */
+.controls > .metric-toggle {
+  margin-top: calc(var(--t-label) * 1.2 + var(--s1));
+}
+
+.controls label,
+.rail .place-picker label {
+  display: block;
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--signal);
+  margin-bottom: var(--s1);
+}

@@ -15,7 +15,7 @@ const ISO = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
-const isLeapYear = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+export const isLeapYear = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 
 /**
  * Is `s` a real calendar date in YYYY-MM-DD form?
@@ -51,4 +51,32 @@ export function parseIso(iso: string): { year: number; month: number; day: numbe
 export function formatDayLabel(iso: string): string {
   const { month, day } = parseIso(iso);
   return `${day} ${MONTHS[month - 1]}`;
+}
+
+const daysInMonth = (year: number, month: number) =>
+  month === 2 && isLeapYear(year) ? 29 : DAYS_IN_MONTH[month - 1];
+
+const iso = (year: number, month: number, day: number) =>
+  `${year}-${pad(month)}-${pad(day)}`;
+
+/**
+ * One calendar day forward or back.
+ *
+ * Done on the parsed fields rather than through `new Date(iso)`: that
+ * constructor reads a bare YYYY-MM-DD as UTC midnight, so west of Greenwich
+ * every stepped date would land on the previous day. The month-length and
+ * leap-year rules this needs are already in this file.
+ */
+export function shiftDay(date: string, step: 1 | -1): string {
+  const { year, month, day } = parseIso(date);
+
+  if (step === 1) {
+    if (day < daysInMonth(year, month)) return iso(year, month, day + 1);
+    if (month < 12) return iso(year, month + 1, 1);
+    return iso(year + 1, 1, 1);
+  }
+
+  if (day > 1) return iso(year, month, day - 1);
+  if (month > 1) return iso(year, month - 1, daysInMonth(year, month - 1));
+  return iso(year - 1, 12, 31);
 }

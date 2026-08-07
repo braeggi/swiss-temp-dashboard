@@ -27,6 +27,30 @@ export function trendSegment(points: DayPoint[]): TrendSegment | null {
   };
 }
 
+/**
+ * The series the scatter should plot: the record, with today's provisional
+ * reading folded in when the record does not already reach it.
+ *
+ * The packed history ends at the last year `build:data` ran, so today's value
+ * arrives separately from the live feed. Drawing it only as a ReferenceDot left
+ * it with no hit area at all — a ScatterChart's tooltip is item-based, so it
+ * fires on the Scatter's own shapes and never on an overlay. The one point a
+ * reader most wants to interrogate was the one point they could not.
+ *
+ * Deliberately returned apart from `points`: the trend line and the "every year
+ * on record" table must keep seeing the completed record alone, or a half-
+ * finished day would tug the regression and appear as a recorded year.
+ */
+export function withTodayPoint(
+  points: DayPoint[],
+  todayYear: number,
+  todayValue: number | null,
+): DayPoint[] {
+  if (todayValue === null) return points;
+  if (points.some((p) => p.year === todayYear)) return points;
+  return [...points, { year: todayYear, value: todayValue }];
+}
+
 export function yDomain(points: DayPoint[], extra: number[]): [number, number] {
   const values = [...points.map((p) => p.value), ...extra];
   if (values.length === 0) return [0, 10];

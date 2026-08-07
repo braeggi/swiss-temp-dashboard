@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { useState } from 'react';
 import type { DayPoint, Metric } from '../types';
-import { trendSegment, yDomain } from '../lib/chartData';
+import { trendSegment, withTodayPoint, yDomain } from '../lib/chartData';
 import { trendPerCentury } from '../lib/series';
 
 const METRIC_LABEL: Record<Metric, string> = {
@@ -88,9 +88,22 @@ export interface DayAcrossYearsChartProps {
   points: DayPoint[];
   metric: Metric;
   dateLabel: string;
-  /** Today's provisional value, drawn as a distinct highlighted point. */
+  /**
+   * The value to highlight, drawn as a distinct point. On today that is the
+   * live reading in progress; on a past day it is that day's own year.
+   */
   todayValue: number | null;
   todayYear: number;
+  /**
+   * Is the highlighted value today's reading in progress?
+   *
+   * False whenever a past day is in view, where the marker picks out a
+   * completed year instead. The chart cannot work this out for itself — it is
+   * handed a value and a year, and both look the same either way — so calling
+   * the mark "today, so far" without being told states something untrue about
+   * the data on every past date.
+   */
+  provisional: boolean;
   homogenised: boolean;
   /** Averaging half-width, for the caption. 0 = single calendar day. */
   windowDays?: number;
@@ -104,6 +117,7 @@ export function DayAcrossYearsChart({
   dateLabel,
   todayValue,
   todayYear,
+  provisional,
   homogenised,
   windowDays = 0,
   norm = null,
@@ -113,10 +127,16 @@ export function DayAcrossYearsChart({
     return <p className="chart-empty">No data recorded for {dateLabel} at this station.</p>;
   }
 
+  // The trend, the domain, the caption and the table all stay on `points` —
+  // the completed record. Only the plotted series carries today's provisional
+  // reading, so that the marker has something to hover.
   const seg = trendSegment(points);
   const perCentury = trendPerCentury(points);
   const domain = yDomain(points, todayValue === null ? [] : [todayValue]);
   const showsToday = todayValue !== null;
+  const plotted = withTodayPoint(points, todayYear, todayValue);
+  // A marker is drawn on every day; only on today is it a reading in progress.
+  const marksToday = showsToday && provisional;
 
   return (
     <figure className="chart">
@@ -134,6 +154,9 @@ export function DayAcrossYearsChart({
             domain={['dataMin - 1', 'dataMax + 1']}
             allowDecimals={false}
             tickCount={8}
+            // Eight four-digit years do not fit a phone-width axis; without a
+            // gap floor Recharts draws them anyway and they run together.
+            minTickGap={28}
             name="Year"
           />
           <YAxis
@@ -150,7 +173,7 @@ export function DayAcrossYearsChart({
                 dateLabel={dateLabel}
                 metric={metric}
                 todayYear={todayYear}
-                isTodayShown={showsToday}
+                isTodayShown={marksToday}
               />
             }
           />
@@ -185,7 +208,7 @@ export function DayAcrossYearsChart({
 
           <Scatter
             name="Past years"
-            data={points}
+            data={plotted}
             fill="currentColor"
             shape={<HitDot />}
             isAnimationActive={false}
@@ -201,7 +224,7 @@ export function DayAcrossYearsChart({
               x={todayYear}
               y={todayValue}
               r={7}
-              fill="var(--accent)"
+              fill="var(--warm)"
               stroke="var(--bg)"
               strokeWidth={2.5}
               className="today-point"
@@ -224,7 +247,9 @@ export function DayAcrossYearsChart({
               <svg width="18" height="12" aria-hidden="true">
                 <circle cx="9" cy="6" r="5" fill="var(--warm)" stroke="var(--bg)" strokeWidth="2" />
               </svg>
-              <span>Today, so far</span>
+              {/* The key has to name what the mark actually is. On a past day
+                  that is a finished year, so it takes the year as its label. */}
+              <span>{marksToday ? 'Today, so far' : todayYear}</span>
             </li>
           )}
         </ul>

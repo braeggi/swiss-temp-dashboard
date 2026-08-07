@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ChartTooltip } from './DayAcrossYearsChart';
+import { ChartTooltip, DayAcrossYearsChart } from './DayAcrossYearsChart';
+import { DateControl } from './DateControl';
+import { WarmingStripesChart } from './WarmingStripes';
 import { CurrentReadingCard } from './CurrentReadingCard';
 import { SourceNote } from './SourceNote';
 import { YearOverviewChart } from './YearOverviewChart';
@@ -341,5 +343,97 @@ describe('YearOverviewChart legend', () => {
       <YearOverviewChart days={empty} metric="mean" year={2026} homogenised />,
     );
     expect(container).toHaveTextContent(/No yearly record available/);
+  });
+});
+
+describe('DateControl steppers', () => {
+  it('steps a day back, and forward when there is room', () => {
+    const seen: string[] = [];
+    render(<DateControl value="2026-08-05" today="2026-08-07" onChange={(d) => seen.push(d)} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Previous day' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next day' }));
+
+    expect(seen).toEqual(['2026-08-04', '2026-08-06']);
+  });
+
+  it('refuses to step past today', () => {
+    const seen: string[] = [];
+    render(<DateControl value="2026-08-07" today="2026-08-07" onChange={(d) => seen.push(d)} />);
+
+    const next = screen.getByRole('button', { name: 'Next day' });
+    expect(next).toBeDisabled();
+
+    fireEvent.click(next);
+    expect(seen).toEqual([]);
+  });
+});
+
+describe('DayAcrossYearsChart marker labelling', () => {
+  const history = [
+    { year: 2023, value: 19 },
+    { year: 2024, value: 20 },
+    { year: 2025, value: 21 },
+  ];
+
+  it('calls the marker "today, so far" only while today is the day in view', () => {
+    render(
+      <DayAcrossYearsChart
+        points={history} metric="mean" dateLabel="7 August"
+        todayValue={22.4} todayYear={2026} homogenised provisional
+      />,
+    );
+    expect(screen.getByText('Today, so far')).toBeInTheDocument();
+  });
+
+  // The marker on a past date highlights that date's own year — a completed
+  // value, not a reading in progress. Claiming "today, so far" for 3 August
+  // while today is the 7th states something untrue about the data.
+  it('names the marked year instead when a past day is in view', () => {
+    render(
+      <DayAcrossYearsChart
+        points={history} metric="mean" dateLabel="3 August"
+        todayValue={21} todayYear={2025} homogenised provisional={false}
+      />,
+    );
+    expect(screen.queryByText('Today, so far')).not.toBeInTheDocument();
+    expect(screen.getByText('2025')).toBeInTheDocument();
+  });
+});
+
+describe('WarmingStripesChart', () => {
+  // Reproduces what the live page printed: "7.9 °C · 10.0 °C · +2.2 °C". The
+  // endpoints round to a 2.1 gap while the full-precision delta rounds to 2.2,
+  // so a reader who checks the subtraction finds it wrong — on a page whose
+  // whole claim is that it can be checked.
+  const data = {
+    stripes: [
+      { year: 1900, value: 7.86, anomaly: -2.18, step: -4 },
+      { year: 2025, value: 10.04, anomaly: 0, step: 4 },
+    ],
+    reference: { fromYear: 1961, toYear: 1990, years: 30, mean: 10.04, sd: 0.6 },
+    shift: {
+      early: { fromYear: 1864, toYear: 1893, mean: 7.86 },
+      recent: { fromYear: 1996, toYear: 2025, mean: 10.04 },
+      delta: 2.18,
+    },
+  };
+
+  it('states a change that agrees with the two figures beside it', () => {
+    const { container } = render(<WarmingStripesChart data={data} homogenised />);
+    const trend = container.querySelector('.chart-trend')!.textContent!;
+
+    const [early, recent, delta] = [...trend.matchAll(/([+−]?)(\d+\.\d)\s*°C/g)]
+      .map(([, sign, n]) => (sign === '−' ? -Number(n) : Number(n)));
+
+    expect(Number((recent - early).toFixed(1))).toBe(delta);
+    expect(trend).toContain('+2.1 °C');
+  });
+
+  it('falls back to describing the stripes when there is no figure to give', () => {
+    const { container } = render(
+      <WarmingStripesChart data={{ ...data, shift: null }} homogenised />,
+    );
+    expect(container).toHaveTextContent(/coloured against the 1961–1990 average/);
   });
 });

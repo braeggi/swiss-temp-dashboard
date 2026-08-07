@@ -1,0 +1,526 @@
+/* One rule governs the blue: it marks where you can act. Control labels, focus
+   rings, hover. Nothing static wears it, and no data mark ever does. */
+
+:where(a, button, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+/* ---- Fields --------------------------------------------------------- */
+
+input[type='search'],
+input[type='date'] {
+  font: inherit;
+  width: 100%;
+  padding: var(--s1) 0;
+  border: 0;
+  border-bottom: var(--hair) solid var(--line);
+  border-radius: var(--radius);
+  background: none;
+  color: var(--fg);
+  transition: border-color var(--dur) var(--ease);
+}
+
+input[type='search']:focus,
+input[type='date']:focus {
+  outline: none;
+  border-bottom-color: var(--signal);
+  border-bottom-width: 2px;
+  padding-bottom: calc(var(--s1) - 1px);
+}
+
+input[type='date'] { width: auto; }
+
+.place-picker { position: relative; margin-bottom: var(--s5); }
+
+.place-results {
+  position: absolute;
+  z-index: 10;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--bg);
+  border: var(--hair) solid var(--fg);
+  border-radius: var(--radius);
+  width: 100%;
+  min-width: 20rem;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.place-results button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--s2) var(--s3);
+  background: none;
+  border: 0;
+  border-bottom: var(--hair) solid var(--line);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.place-results li:last-child button { border-bottom: 0; }
+.place-results button:hover { background: var(--fg); color: var(--bg); }
+.place-results button:hover .place-meta { color: var(--bg); opacity: 0.7; }
+
+.place-name { display: block; }
+.place-meta { display: block; font-size: var(--t-xs); color: var(--muted); }
+
+/* Block, not flex: every control in the row is label-over-control, and a flex
+   container here put the date label on its own line box — leaving it sitting a
+   few pixels above the other labels in the same row. */
+.date-control { display: block; }
+
+/* Arrow, field, arrow read as one instrument, joined by the same 1px gaps as
+   the segmented toggles beside them. `stretch` is what keeps the arrow buttons
+   exactly as tall as the field, whatever the browser gives a date input.
+
+   Wrapping is allowed for the reset link only in practice: the three-part
+   stepper is ~200px and always fits, so a narrow screen breaks before the link
+   rather than inside the instrument. Without it the row clears a 390px phone by
+   about a pixel, and a locale that renders the date wider would overflow. */
+.date-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--s2) var(--hair);
+}
+
+/* Inside the stepper the field is boxed rather than underlined — an underline
+   between two boxed buttons reads as a gap in the unit. */
+.date-stepper input[type='date'] {
+  padding: var(--s1) var(--s2);
+  border-bottom: 0;
+  box-shadow: 0 0 0 var(--hair) var(--line);
+}
+
+.date-stepper input[type='date']:focus {
+  border-bottom: 0;
+  padding-bottom: var(--s1);
+  box-shadow: 0 0 0 2px var(--signal);
+}
+
+.date-step {
+  font: inherit;
+  font-size: var(--t-sm);
+  line-height: 1;
+  padding: var(--s1) var(--s3);
+  background: var(--bg);
+  border: 0;
+  box-shadow: 0 0 0 var(--hair) var(--line);
+  color: inherit;
+  cursor: pointer;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.date-step:hover:not(:disabled) { background: var(--fg); color: var(--bg); }
+
+/* Stepping past today is the one thing the field itself already refuses, so
+   the button refuses visibly rather than clamping without a word. */
+.date-step:disabled {
+  color: var(--muted);
+  background: color-mix(in oklab, var(--fg) 5%, var(--bg));
+  cursor: not-allowed;
+}
+
+.date-reset {
+  font: inherit;
+  font-size: var(--t-xs);
+  align-self: center;
+  margin-left: var(--s3);
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--signal);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* ---- Segmented toggles ----------------------------------------------
+   Active is inverted rather than tinted. Filling the segment with ink keeps
+   the blue free to mean "focus" alone, and reads harder at this scale.
+
+   Each button draws its own hairline as a 1px box-shadow and the group leaves a
+   1px gap, so neighbouring shadows meet in the middle and read as one line.
+   That is what lets the group wrap — the threshold toggle has five options and
+   cannot hold one line on a phone. A container background would have done the
+   same job on one row, but leaves a grey slab beside the shorter second row;
+   a border-per-button leaves a stray edge wherever the row breaks. */
+
+.metric-toggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--hair);
+  border-radius: var(--radius);
+}
+
+.metric-toggle button {
+  font: inherit;
+  font-size: var(--t-xs);
+  padding: var(--s1) var(--s3);
+  background: var(--bg);
+  border: 0;
+  box-shadow: 0 0 0 var(--hair) var(--line);
+  color: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.metric-toggle button:hover:not(:disabled):not(.active) {
+  background: color-mix(in oklab, var(--fg) 8%, var(--bg));
+}
+.metric-toggle button.active { background: var(--fg); color: var(--bg); }
+
+/* Not opacity: these buttons sit on the container's line colour, so a
+   translucent segment lets the separator bleed through the middle of it. */
+.metric-toggle button:disabled {
+  color: var(--muted);
+  background: color-mix(in oklab, var(--fg) 5%, var(--bg));
+  cursor: not-allowed;
+}
+
+/* ---- The answer ------------------------------------------------------ */
+
+.answer-section { margin-bottom: var(--s5); }
+
+.heat-headline { border-top: var(--rule-w) solid var(--rule); padding-top: var(--s2); }
+
+.heat-heading {
+  margin: 0;
+  font-size: var(--t-md);
+  font-weight: 600;
+  letter-spacing: var(--track-tight);
+}
+
+.heat-sub { margin: var(--s1) 0 0; font-size: var(--t-xs); color: var(--muted); }
+
+.reading-card { padding-top: var(--s5); }
+
+.reading-card h2 {
+  margin: 0 0 var(--s2);
+  font-size: var(--t-md);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+/* The station is the page's subject, so it gets the one solid block of ink. */
+.reading-place {
+  background: var(--fg);
+  color: var(--bg);
+  font-weight: 550;
+  padding: 0.1em 0.4em;
+  margin-right: 0.15em;
+}
+
+.reading-now { color: var(--muted); }
+
+.reading-provenance,
+.reading-records {
+  margin: var(--s1) 0 0;
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--muted);
+}
+
+.reading-sofar { margin: var(--s2) 0 0; font-size: var(--t-xs); color: var(--muted); }
+.reading-sofar em { color: var(--fg); font-style: normal; }
+
+/* The verdict. One figure carries the finding; everything else is the working. */
+.reading-verdict {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  border-top: var(--rule-w) solid var(--rule);
+  margin: var(--s4) 0 var(--s2);
+  padding-top: var(--s3);
+}
+
+.reading-rank-figure {
+  font-size: var(--t-mega);
+  font-weight: 700;
+  line-height: 0.82;
+  letter-spacing: var(--track-mega);
+  /* Proportional, not tabular: equal-width digits look loose at display size. */
+  font-variant-numeric: proportional-nums;
+}
+
+.reading-rank-of { font-size: var(--t-xs); line-height: 1.35; color: var(--muted); }
+
+.reading-verdict-quiet {
+  display: block;
+  font-size: var(--t-sm);
+  color: var(--muted);
+}
+
+.reading-deviation { margin: 0 0 var(--s2); font-size: var(--t-sm); }
+
+/* The sign is the meaning here, so it takes the diverging pole — and the words
+   beside it repeat it, so colour is never carrying it alone. */
+.dev-warm { color: var(--warm-ink); font-weight: 650; }
+.dev-cool { color: var(--cool-ink); font-weight: 650; }
+
+.answer-tiles { list-style: none; margin: var(--s4) 0 0; padding: 0; }
+
+.answer-tile {
+  border-top: var(--rule-w) solid var(--rule);
+  padding: var(--s2) 0 var(--s3);
+  font-size: var(--t-xs);
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Notices --------------------------------------------------------- */
+
+.status,
+.error {
+  margin: var(--s3) 0;
+  font-size: var(--t-xs);
+  line-height: 1.45;
+}
+
+.status { color: var(--muted); }
+.error { color: var(--warm-ink); }
+
+/* ---- Source note ----------------------------------------------------- */
+
+.source-note {
+  margin-top: var(--s5);
+  padding-top: var(--s3);
+  border-top: var(--hair) solid var(--line);
+  font-size: var(--t-xs);
+  color: var(--muted);
+}
+
+.source-note ul { margin: 0 0 var(--s2); padding-left: 1.1rem; }
+.attribution { font-weight: 500; margin: 0; }
+
+/* ---- Charts ---------------------------------------------------------- */
+
+.chart { margin: 0; }
+.recharts-surface { color: var(--fg); }
+
+/* Recharts renders axes with its own presentation attributes (#666, 14px). CSS
+   beats a presentation attribute, so the axes are pulled onto the token scale
+   here rather than by passing style props at four call sites. */
+.recharts-cartesian-axis-tick text {
+  font-size: 0.6875rem;
+  fill: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.recharts-cartesian-axis-line,
+.recharts-cartesian-axis-tick-line { stroke: var(--axis); }
+
+.chart figcaption,
+.chart-empty {
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--muted);
+  margin-bottom: var(--s2);
+}
+
+.chart-trend { font-size: var(--t-xs); color: var(--muted); }
+
+.chart-tooltip {
+  background: var(--bg);
+  border: var(--hair) solid var(--fg);
+  border-radius: var(--radius);
+  padding: var(--s2) var(--s3);
+  font-size: var(--t-xs);
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-tooltip-head {
+  color: var(--muted);
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+}
+
+.chart-tooltip-today { color: var(--warm-ink); }
+.chart-tooltip-value { font-weight: 650; }
+
+/* Chart footer: legend on the left, the table escape hatch on the right.
+   A tooltip must never be the only way to read a value. */
+.chart-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s4);
+  flex-wrap: wrap;
+  margin-top: var(--s2);
+  border-top: var(--hair) solid var(--line);
+  padding-top: var(--s2);
+}
+
+/* Swatches reuse the chart's own opacities, so the key cannot drift from what
+   is drawn. */
+.chart-key {
+  list-style: none;
+  margin: var(--s2) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--s1) var(--s4);
+  font-size: var(--t-xs);
+}
+
+.chart-key li { display: flex; align-items: baseline; gap: var(--s2); }
+.chart-key svg { flex: none; transform: translateY(1px); }
+.chart-key em { display: block; font-style: normal; color: var(--muted); }
+.chart-foot .chart-key { display: flex; gap: var(--s4); margin: 0; }
+
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: var(--t-xs);
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color var(--dur) var(--ease);
+}
+
+.link-button:hover { color: var(--signal); }
+
+/* ---- Warming stripes -------------------------------------------------
+   One rect per year, placed by year rather than by list position, so a year
+   the record could not complete stays a visible gap in the surface colour
+   instead of quietly compressing the axis. */
+
+.stripes { position: relative; }
+
+.stripes svg {
+  display: block;
+  width: 100%;
+  height: 9rem;
+  /* The stripes are a field, not a plot: no aspect ratio to preserve. */
+}
+
+.stripes-cursor {
+  fill: none;
+  stroke: var(--fg);
+  stroke-width: 0.5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+/* Centred on the hovered stripe and pulled back inside the field at the ends,
+   so a tooltip on 1864 does not hang off the left edge. */
+.stripes-tooltip {
+  position: absolute;
+  bottom: calc(100% + var(--s2));
+  transform: translateX(-50%);
+  white-space: nowrap;
+  pointer-events: none;
+  max-width: max-content;
+}
+
+.stripes-axis {
+  position: relative;
+  height: 1.1rem;
+  margin-top: var(--s1);
+  font-size: var(--t-label);
+  letter-spacing: var(--track-label);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.stripes-axis span { position: absolute; transform: translateX(-50%); }
+
+.stripes-scale {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-label);
+  letter-spacing: var(--track-label);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.stripes-scale svg { display: block; flex: none; }
+
+/* ---- Tables ---------------------------------------------------------- */
+
+.table-scroll { max-height: 18rem; overflow: auto; margin-top: var(--s2); }
+
+.decade-table,
+.data-table {
+  border-collapse: collapse;
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table { width: 100%; }
+.decade-table { margin-top: var(--s2); }
+
+.decade-table caption,
+.data-table caption {
+  text-align: left;
+  color: var(--muted);
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  padding-bottom: var(--s1);
+}
+
+.decade-table th,
+.decade-table td { padding: 0.15rem var(--s4) 0.15rem 0; text-align: right; }
+.decade-table th { text-align: left; font-weight: 500; color: var(--muted); }
+
+.data-table th,
+.data-table td { padding: 0.2rem var(--s4) 0.2rem 0; text-align: right; }
+
+.data-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  text-align: right;
+  font-weight: 500;
+  color: var(--muted);
+  border-bottom: var(--hair) solid var(--fg);
+}
+
+.data-table tbody th { text-align: left; font-weight: 400; }
+.decade-years { color: var(--muted); }
+
+/* ---- The live marker -------------------------------------------------
+   A slow pulse so the eye finds the current value without it becoming a
+   distraction. Scaled from the centre of each symbol, which is why
+   transform-box matters — an SVG path's default transform origin is the
+   viewport corner, not the shape.
+
+   Opacity only, and a gentle swing. The warm fill and the surface-coloured
+   ring already make the marker findable, so the animation only has to say
+   "this one is live" — not compete with the data for attention. */
+.today-point path,
+.today-point circle { animation: today-pulse 2.6s ease-in-out infinite; }
+
+/* The marker is a highlight drawn over the point it marks, and Recharts draws
+   it `isFront`. Without this it sits on top of that point's hit area and eats
+   the hover, so the tooltip only fired on the ring of slack around it. It has
+   no tooltip of its own to offer in exchange — the point underneath does. */
+.today-point { pointer-events: none; }
+
+@keyframes today-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.6; }
+}
+
+/* Blinking is a genuine accessibility problem for some readers, and the marker
+   is already distinguishable by colour and size without it. */
+@media (prefers-reduced-motion: reduce) {
+  .today-point path,
+  .today-point circle { animation: none; }
+  * { transition-duration: 0.01ms !important; }
+}

@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MIN_YEARS_FOR_TREND,
+  annualMeans,
   dayAcrossYears,
   dayAcrossYearsWindowed,
   extremes,
@@ -239,5 +240,43 @@ describe('dayAcrossYearsWindowed', () => {
     const a = withLeap.find((p) => p.year === leapYear)!;
     const b = single.find((p) => p.year === leapYear)!;
     expect(a.value).not.toBe(b.value);
+  });
+});
+
+describe('annualMeans', () => {
+  /** Every day of every year set from a per-year function. */
+  const yearly = (fromYear: number, toYear: number, at: (y: number) => number, covered = SLOTS_PER_YEAR) => {
+    const mean = allocateSeries(fromYear, toYear);
+    for (let y = fromYear; y <= toYear; y++) {
+      for (let s = 0; s < covered; s++) {
+        mean[(y - fromYear) * SLOTS_PER_YEAR + s] = encodeValue(at(y));
+      }
+    }
+    return {
+      abbr: 'TST', name: 'Test', canton: 'ZH', lat: 47, lon: 8, altitude: 400,
+      source: 'smn' as const, homogenised: false, fromYear, toYear,
+      mean, max: [...mean], min: [...mean],
+    };
+  };
+
+  it('averages each complete year', () => {
+    const st = yearly(2000, 2002, (y) => y - 1990);
+    expect(annualMeans(st)).toEqual([
+      { year: 2000, value: 10 },
+      { year: 2001, value: 11 },
+      { year: 2002, value: 12 },
+    ]);
+  });
+
+  // A year with a long outage would average only its covered months and read as
+  // a cold (or warm) year — the stripe would then encode data coverage, not
+  // climate. Same rule the threshold counts already use.
+  it('drops a year too incomplete to average honestly', () => {
+    expect(annualMeans(yearly(2000, 2002, () => 10, 100))).toEqual([]);
+  });
+
+  it('tolerates the odd missing day every long record has', () => {
+    const st = yearly(2000, 2000, () => 10, SLOTS_PER_YEAR - 5);
+    expect(annualMeans(st)).toHaveLength(1);
   });
 });

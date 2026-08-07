@@ -101,6 +101,8 @@ export function ThresholdChart({ rows, threshold, homogenised }: ThresholdChartP
             domain={['dataMin', 'dataMax']}
             allowDecimals={false}
             tickCount={8}
+            // See DayAcrossYearsChart: four-digit years collide on a narrow axis.
+            minTickGap={28}
           />
           <YAxis type="number" allowDecimals={false} />
           <Tooltip
