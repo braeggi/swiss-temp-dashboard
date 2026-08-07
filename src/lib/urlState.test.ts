@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildUrlSearch, parseUrlState } from './urlState';
+import { buildUrlSearch, parseUrlState, readLegacyViewParam } from './urlState';
 
 describe('parseUrlState', () => {
   it('reads a full station link', () => {
@@ -18,8 +18,6 @@ describe('parseUrlState', () => {
     expect(parseUrlState('')).toEqual({});
   });
 
-  // A shared link can be truncated or hand-edited. Each field is validated on
-  // its own so a partly-broken link still restores the parts that survived.
   it('drops an invalid field but keeps the valid ones', () => {
     expect(parseUrlState('?station=BUS&date=not-a-date&metric=max')).toEqual({
       station: 'BUS',
@@ -28,8 +26,6 @@ describe('parseUrlState', () => {
   });
 
   it('rejects a date that is impossible rather than merely misshapen', () => {
-    // The whole reason isIsoDate now validates the calendar: this used to pass
-    // and then throw in the render path.
     expect(parseUrlState('?date=0000-00-00').date).toBeUndefined();
     expect(parseUrlState('?date=2026-02-29').date).toBeUndefined();
     expect(parseUrlState('?date=2024-02-29').date).toBe('2024-02-29');
@@ -68,13 +64,13 @@ describe('buildUrlSearch', () => {
 
   it('omits everything at its default', () => {
     expect(
-      buildUrlSearch({ stationAbbr: 'SMA', place: null, date: today, today, metric: 'mean', windowDays: 0, view: 'day', threshold: 'hotDays' }),
+      buildUrlSearch({ stationAbbr: 'SMA', place: null, date: today, today, metric: 'mean', windowDays: 0, threshold: 'hotDays' }),
     ).toBe('?station=SMA');
   });
 
   it('is empty when nothing is selected', () => {
     expect(
-      buildUrlSearch({ stationAbbr: null, place: null, date: today, today, metric: 'mean', windowDays: 0, view: 'day', threshold: 'hotDays' }),
+      buildUrlSearch({ stationAbbr: null, place: null, date: today, today, metric: 'mean', windowDays: 0, threshold: 'hotDays' }),
     ).toBe('');
   });
 
@@ -87,8 +83,7 @@ describe('buildUrlSearch', () => {
         today,
         metric: 'max',
         windowDays: 0,
-      view: 'day' as const,
-      threshold: 'hotDays' as const,
+        threshold: 'hotDays' as const,
       }),
     ).toBe('?station=BUS&date=2026-07-30&metric=max');
   });
@@ -101,7 +96,6 @@ describe('buildUrlSearch', () => {
       today,
       metric: 'mean',
       windowDays: 0,
-      view: 'day' as const,
       threshold: 'hotDays' as const,
     });
     expect(s).toContain('place=Susch');
@@ -116,7 +110,6 @@ describe('buildUrlSearch', () => {
       today,
       metric: 'mean',
       windowDays: 0,
-      view: 'day' as const,
       threshold: 'hotDays' as const,
     });
     expect(s).toContain('lat=46.74812');
@@ -131,7 +124,6 @@ describe('buildUrlSearch', () => {
       today,
       metric: 'min' as const,
       windowDays: 0 as const,
-      view: 'day' as const,
       threshold: 'hotDays' as const,
     };
     expect(parseUrlState(buildUrlSearch(state))).toEqual({
@@ -144,7 +136,7 @@ describe('buildUrlSearch', () => {
   it('round-trips a geocoded place', () => {
     const place = { name: 'Susch', lat: 46.7481, lon: 10.0808 };
     const parsed = parseUrlState(
-      buildUrlSearch({ stationAbbr: null, place, date: today, today, metric: 'mean', windowDays: 0, view: 'day', threshold: 'hotDays' }),
+      buildUrlSearch({ stationAbbr: null, place, date: today, today, metric: 'mean', windowDays: 0, threshold: 'hotDays' }),
     );
     expect(parsed.place).toEqual(place);
   });
@@ -167,13 +159,13 @@ describe('window parameter', () => {
 
   it('omits the default single-day window from the link', () => {
     expect(
-      buildUrlSearch({ stationAbbr: 'SMA', place: null, date: today, today, metric: 'mean', windowDays: 0, view: 'day', threshold: 'hotDays' }),
+      buildUrlSearch({ stationAbbr: 'SMA', place: null, date: today, today, metric: 'mean', windowDays: 0, threshold: 'hotDays' }),
     ).toBe('?station=SMA');
   });
 
   it('round-trips a non-default window', () => {
     const s = buildUrlSearch({
-      stationAbbr: 'SMA', place: null, date: today, today, metric: 'mean', windowDays: 7, view: 'day' as const,
+      stationAbbr: 'SMA', place: null, date: today, today, metric: 'mean', windowDays: 7,
       threshold: 'hotDays' as const,
     });
     expect(s).toBe('?station=SMA&window=7');
@@ -181,34 +173,15 @@ describe('window parameter', () => {
   });
 });
 
-describe('view parameter', () => {
-  const today = '2026-07-31';
-  const base = { stationAbbr: 'SMA', place: null, date: today, today, metric: 'mean' as const, windowDays: 0 as const };
-
-  it('omits the default day view', () => {
-    expect(buildUrlSearch({ ...base, view: 'day', threshold: 'hotDays' })).toBe('?station=SMA');
-  });
-
-  it('round-trips the year view', () => {
-    const s = buildUrlSearch({ ...base, view: 'year', threshold: 'hotDays' });
-    expect(s).toBe('?station=SMA&view=year');
-    expect(parseUrlState(s).view).toBe('year');
-  });
-
-  it('rejects an unknown view', () => {
-    expect(parseUrlState('?view=decade').view).toBeUndefined();
-  });
-});
-
 describe('threshold parameter', () => {
   const today = '2026-07-31';
   const base = {
     stationAbbr: 'SMA', place: null, date: today, today,
-    metric: 'mean' as const, windowDays: 0 as const, view: 'threshold' as const,
+    metric: 'mean' as const, windowDays: 0 as const,
   };
 
   it('omits the default threshold', () => {
-    expect(buildUrlSearch({ ...base, threshold: 'hotDays' })).toBe('?station=SMA&view=threshold');
+    expect(buildUrlSearch({ ...base, threshold: 'hotDays' })).toBe('?station=SMA');
   });
 
   it('round-trips a non-default threshold', () => {
@@ -219,5 +192,19 @@ describe('threshold parameter', () => {
 
   it('rejects an unknown threshold', () => {
     expect(parseUrlState('?threshold=mildDays').threshold).toBeUndefined();
+  });
+});
+
+describe('readLegacyViewParam', () => {
+  it('reads a known view from an old link', () => {
+    expect(readLegacyViewParam('?view=year')).toBe('year');
+    expect(readLegacyViewParam('?view=threshold')).toBe('threshold');
+    expect(readLegacyViewParam('?view=day')).toBe('day');
+  });
+
+  it('returns undefined for no view, an unknown view, or no query at all', () => {
+    expect(readLegacyViewParam('')).toBeUndefined();
+    expect(readLegacyViewParam('?station=SMA')).toBeUndefined();
+    expect(readLegacyViewParam('?view=decade')).toBeUndefined();
   });
 });

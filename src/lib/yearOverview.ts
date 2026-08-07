@@ -1,5 +1,5 @@
 import type { Metric, PackedStation } from '../types';
-import { MONTH_OFFSET, SLOTS_PER_YEAR, decodeValue, metricArray } from './packed';
+import { SLOTS_PER_YEAR, decodeValue, metricArray, monthDayOfSlot } from './packed';
 
 /**
  * One calendar position, summarised across the whole record plus the selected
@@ -26,18 +26,6 @@ export interface YearDay {
   current: number | null;
   /** How many years contributed to the summary at this position. */
   years: number;
-}
-
-/** Month index (1-12) for a slot, derived from the same table as the codec. */
-function monthDayOfSlot(slot: number): { month: number; day: number } {
-  let month = 12;
-  for (let m = 0; m < 12; m++) {
-    if (slot < MONTH_OFFSET[m]) {
-      month = m; // previous month, since MONTH_OFFSET[m] is the first slot of month m+1
-      break;
-    }
-  }
-  return { month, day: slot - MONTH_OFFSET[month - 1] + 1 };
 }
 
 /**

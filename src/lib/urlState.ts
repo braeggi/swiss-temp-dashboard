@@ -21,8 +21,6 @@ export interface UrlState {
   metric?: Metric;
   /** Averaging half-width in days; 0 is the single calendar day. */
   windowDays?: WindowDays;
-  /** Which chart is shown. */
-  view?: ViewMode;
   /** Which threshold the hot-and-cold-days view counts. */
   threshold?: ThresholdKey;
 }
@@ -68,9 +66,6 @@ export function parseUrlState(search: string): UrlState {
     if (Number.isInteger(n) && isWindowDays(n)) out.windowDays = n;
   }
 
-  const view = q.get('view');
-  if (view !== null && isViewMode(view)) out.view = view;
-
   const threshold = q.get('threshold');
   if (threshold !== null && isThresholdKey(threshold)) out.threshold = threshold;
 
@@ -90,7 +85,6 @@ export function buildUrlSearch(state: {
   today: string;
   metric: Metric;
   windowDays: WindowDays;
-  view: ViewMode;
   threshold: ThresholdKey;
 }): string {
   const q = new URLSearchParams();
@@ -108,9 +102,21 @@ export function buildUrlSearch(state: {
   if (state.date !== state.today) q.set('date', state.date);
   if (state.metric !== 'mean') q.set('metric', state.metric);
   if (state.windowDays !== 0) q.set('window', String(state.windowDays));
-  if (state.view !== 'day') q.set('view', state.view);
   if (state.threshold !== 'hotDays') q.set('threshold', state.threshold);
 
   const s = q.toString();
   return s === '' ? '' : `?${s}`;
+}
+
+/**
+ * The `view` parameter used to pick which of three chart tabs was open. The
+ * tabs are gone — the page now shows all three evidence sections at once —
+ * but an old link naming one should still land the reader there instead of
+ * silently ignoring the parameter. Read once at mount, used to scroll to the
+ * matching section, then dropped: the address-bar sync effect never writes
+ * it back, so it does not reappear.
+ */
+export function readLegacyViewParam(search: string): ViewMode | undefined {
+  const raw = new URLSearchParams(search).get('view');
+  return raw !== null && isViewMode(raw) ? raw : undefined;
 }

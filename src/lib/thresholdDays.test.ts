@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   MIN_DAYS_FOR_YEAR,
+  MIN_COVERAGE_RATIO,
   THRESHOLDS,
   byDecade,
   decadeChange,
+  heatDaysToDate,
   isThresholdKey,
   thresholdDays,
 } from './thresholdDays';
-import { SLOTS_PER_YEAR, allocateSeries, encodeValue } from './packed';
+import { SLOTS_PER_YEAR, allocateSeries, encodeValue, slotOfYear } from './packed';
 import type { PackedStation } from '../types';
 
 /** Station where every day of every year carries an explicit max and min. */
@@ -30,6 +32,28 @@ function station(
     abbr: 'TST', name: 'Test', canton: 'ZH', lat: 47, lon: 8, altitude: 400,
     source: 'smn', homogenised: false, fromYear, toYear,
     mean: [...max], max, min,
+  };
+}
+
+/** Station whose `max` carries a chosen number of 30 °C days before a cutoff. */
+function stationWithHotDays(
+  fromYear: number,
+  toYear: number,
+  hotDaysPerYear: Record<number, number>,
+  coveredSlots = 366,
+): PackedStation {
+  const max = allocateSeries(fromYear, toYear);
+  for (let y = fromYear; y <= toYear; y++) {
+    const hot = hotDaysPerYear[y] ?? 0;
+    for (let s = 0; s < coveredSlots; s++) {
+      max[(y - fromYear) * SLOTS_PER_YEAR + s] = encodeValue(s < hot ? 31 : 10);
+    }
+  }
+  return {
+    abbr: 'TST', name: 'Test', canton: 'ZH', lat: 47, lon: 8, altitude: 400,
+    source: 'smn', homogenised: false, fromYear, toYear,
+    mean: allocateSeries(fromYear, toYear), max,
+    min: allocateSeries(fromYear, toYear),
   };
 }
 
@@ -107,6 +131,65 @@ describe('thresholdDays', () => {
   it('throws on an unknown threshold rather than silently counting nothing', () => {
     const st = station(2000, 2000, () => 10);
     expect(() => thresholdDays(st, 'nope' as never)).toThrow(/Unknown threshold/);
+  });
+});
+
+describe('heatDaysToDate (R3)', () => {
+  it('counts only days up to and including the cutoff', () => {
+    // 20 hot days sit in slots 0..19, all before 1 August (slot 213).
+    const st = stationWithHotDays(2020, 2020, { 2020: 20 });
+    const [row] = heatDaysToDate(st, 8, 1, 'hotDays');
+    expect(row.days).toBe(20);
+  });
+
+  it('ignores hot days that fall after the cutoff', () => {
+    // 250 hot days in slots 0..249; only slots 0..213 are in range.
+    const st = stationWithHotDays(2020, 2020, { 2020: 250 });
+    const [row] = heatDaysToDate(st, 8, 1, 'hotDays');
+    expect(row.days).toBe(214);
+  });
+
+  it('compares every year against the same cutoff', () => {
+    const st = stationWithHotDays(2001, 2003, { 2001: 5, 2002: 9, 2003: 31 });
+    const rows = heatDaysToDate(st, 8, 1, 'hotDays');
+    expect(rows.map((r) => [r.year, r.days])).toEqual([
+      [2001, 5],
+      [2002, 9],
+      [2003, 31],
+    ]);
+  });
+
+  it('withholds a year that is too incomplete up to the cutoff', () => {
+    // Covered only to slot 100, well under 90.4 % of the 214 elapsed slots.
+    const st = stationWithHotDays(2020, 2020, { 2020: 10 }, 100);
+    const [row] = heatDaysToDate(st, 8, 1, 'hotDays');
+    expect(row.days).toBeNull();
+    expect(row.daysWithData).toBe(100);
+  });
+
+  it('derives its coverage ratio from the whole-year rule', () => {
+    expect(MIN_COVERAGE_RATIO).toBe(MIN_DAYS_FOR_YEAR / SLOTS_PER_YEAR);
+  });
+
+  it('reproduces the whole-year gate exactly at a 31 December cutoff', () => {
+    // The derivation exists so the two rules cannot drift. At the year end the
+    // to-date gate must land on MIN_DAYS_FOR_YEAR itself, not one day beside it.
+    const elapsed = slotOfYear(12, 31) + 1;
+    expect(elapsed).toBe(SLOTS_PER_YEAR);
+    expect(Math.ceil(elapsed * MIN_COVERAGE_RATIO)).toBe(MIN_DAYS_FOR_YEAR);
+  });
+
+  it('applies the threshold at the cutoff', () => {
+    // 193 of 214 slots is the first count that clears ceil(214 * 330/366).
+    const elapsed = 214;
+    const needed = Math.ceil(elapsed * MIN_COVERAGE_RATIO);
+    expect(needed).toBe(193);
+
+    const ok = stationWithHotDays(2020, 2020, { 2020: 3 }, needed);
+    expect(heatDaysToDate(ok, 8, 1, 'hotDays')[0].days).toBe(3);
+
+    const short = stationWithHotDays(2020, 2020, { 2020: 3 }, needed - 1);
+    expect(heatDaysToDate(short, 8, 1, 'hotDays')[0].days).toBeNull();
   });
 });
 

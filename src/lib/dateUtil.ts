@@ -15,7 +15,7 @@ const ISO = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
-const isLeapYear = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+export const isLeapYear = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 
 /**
  * Is `s` a real calendar date in YYYY-MM-DD form?

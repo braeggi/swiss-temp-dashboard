@@ -7,6 +7,7 @@ import {
   encodeValue,
   indexFor,
   metricArray,
+  monthDayOfSlot,
   slotOfYear,
 } from './packed';
 import type { PackedStation } from '../types';
@@ -81,5 +82,30 @@ describe('metricArray', () => {
     expect(metricArray(st, 'mean')).toEqual([1]);
     expect(metricArray(st, 'max')).toEqual([2]);
     expect(metricArray(st, 'min')).toEqual([3]);
+  });
+});
+
+describe('monthDayOfSlot', () => {
+  it('inverts slotOfYear for every slot in the table', () => {
+    // Every slot 0..365 must round-trip, including 59 (Feb 29), which only
+    // exists because the offsets are leap-year based.
+    for (let slot = 0; slot < SLOTS_PER_YEAR; slot++) {
+      const { month, day } = monthDayOfSlot(slot);
+      expect(slotOfYear(month, day)).toBe(slot);
+    }
+  });
+
+  it('maps the boundary slots', () => {
+    expect(monthDayOfSlot(0)).toEqual({ month: 1, day: 1 });
+    expect(monthDayOfSlot(31)).toEqual({ month: 2, day: 1 });
+    expect(monthDayOfSlot(59)).toEqual({ month: 2, day: 29 });
+    expect(monthDayOfSlot(60)).toEqual({ month: 3, day: 1 });
+    expect(monthDayOfSlot(213)).toEqual({ month: 8, day: 1 });
+    expect(monthDayOfSlot(365)).toEqual({ month: 12, day: 31 });
+  });
+
+  it('rejects slots outside the year', () => {
+    expect(() => monthDayOfSlot(-1)).toThrow();
+    expect(() => monthDayOfSlot(366)).toThrow();
   });
 });

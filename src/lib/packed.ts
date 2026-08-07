@@ -21,6 +21,22 @@ export function slotOfYear(month: number, day: number): number {
   return MONTH_OFFSET[month - 1] + (day - 1);
 }
 
+/**
+ * Inverse of `slotOfYear`: which calendar date does this slot stand for?
+ *
+ * The offsets are leap-year based, so slot 59 is always Feb 29 — in a common
+ * year that slot simply holds no reading. Episode detection walks slots and
+ * needs to name the day it landed on, which is what this is for.
+ */
+export function monthDayOfSlot(slot: number): { month: number; day: number } {
+  if (!Number.isInteger(slot) || slot < 0 || slot >= SLOTS_PER_YEAR) {
+    throw new Error(`Slot out of range: ${slot}`);
+  }
+  let month = 12;
+  while (MONTH_OFFSET[month - 1] > slot) month--;
+  return { month, day: slot - MONTH_OFFSET[month - 1] + 1 };
+}
+
 export function indexFor(fromYear: number, year: number, month: number, day: number): number {
   return (year - fromYear) * SLOTS_PER_YEAR + slotOfYear(month, day);
 }
