@@ -41,6 +41,9 @@ export default function DayEvidence({
         dateLabel={dateLabel}
         todayValue={todayValue}
         todayYear={todayYear}
+        // Only this section knows which day is in view, so only it can say
+        // whether the highlighted value is still being measured.
+        provisional={date === today}
         homogenised={homogenised}
         windowDays={windowDisabled ? 0 : windowDays}
         norm={norm}

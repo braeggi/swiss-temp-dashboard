@@ -12,6 +12,7 @@ import './styles.css';
 const DayEvidence = lazy(() => import('./sections/DayEvidence'));
 const YearEvidence = lazy(() => import('./sections/YearEvidence'));
 const TrendEvidence = lazy(() => import('./sections/TrendEvidence'));
+const StripesEvidence = lazy(() => import('./sections/StripesEvidence'));
 
 const SECTION_ID: Record<ViewMode, string> = {
   day: 'evidence-day',
@@ -63,11 +64,13 @@ export function App() {
 
   return (
     <main className="app">
-      <header>
+      <header className="masthead">
         <h1>Swiss heat — how bad is it right now?</h1>
       </header>
 
-      <div className="controls">
+      {/* The answer column. It stays put while the evidence scrolls past, so the
+          verdict is still on screen when you are halfway through the working. */}
+      <div className="rail">
         <PlacePicker
           index={s.index}
           selected={s.selected}
@@ -75,78 +78,96 @@ export function App() {
           onSelectPlace={s.setPlace}
           searchPlaces={s.geocodeSearch}
         />
+
+        {s.loading && <p className="status">Loading {s.selected?.name}…</p>}
+        {s.error && <p className="error">{s.error}</p>}
+        {s.liveStale && s.isToday && (
+          <p className="status">
+            This station's live feed has not reported in over two hours — showing history only.
+          </p>
+        )}
+
+        {s.plan && (s.place !== null || s.station) && (
+          <>
+            <AnswerSection
+              station={s.station}
+              isPlace={s.place !== null}
+              effectiveSoFar={s.isToday ? s.effectiveSoFar : null}
+              headline={s.headline}
+              placeLabel={s.plan.label}
+              viewedDateLabel={s.dateLabel}
+              metric={s.metric}
+              liveStationName={s.plan.liveStation?.name ?? null}
+              liveDistanceKm={s.plan.liveDistanceKm}
+              today={s.today}
+            />
+
+            <SourceNote plan={s.plan} usesOpenMeteo={s.place !== null} />
+          </>
+        )}
       </div>
 
-      {s.loading && <p className="status">Loading {s.selected?.name}…</p>}
-      {s.error && <p className="error">{s.error}</p>}
-      {s.liveStale && s.isToday && (
-        <p className="status">
-          This station's live feed has not reported in over two hours — showing history only.
-        </p>
-      )}
+      <div className="stream">
+        {s.plan && (s.place !== null || s.station) && (
+          <>
+            <LazyOnVisible forceVisible={s.legacyView === 'day'}>
+              <Suspense fallback={<p className="status">Loading chart…</p>}>
+                <DayEvidence
+                  date={s.date}
+                  today={s.today}
+                  onDateChange={s.setDate}
+                  metric={s.metric}
+                  onMetricChange={s.setMetric}
+                  windowDays={s.windowDays}
+                  onWindowChange={s.setWindowDays}
+                  windowDisabled={s.place !== null}
+                  points={s.points}
+                  dateLabel={s.dateLabel}
+                  todayValue={s.isToday ? s.todayMarkerValue : s.selectedYearValue}
+                  todayYear={parseIso(s.isToday ? s.today : s.date).year}
+                  homogenised={s.station?.homogenised ?? false}
+                  norm={s.dayNorm}
+                />
+              </Suspense>
+            </LazyOnVisible>
 
-      {s.plan && (s.place !== null || s.station) && (
-        <>
-          <AnswerSection
-            station={s.station}
-            isPlace={s.place !== null}
-            effectiveSoFar={s.isToday ? s.effectiveSoFar : null}
-            headline={s.headline}
-            placeLabel={s.plan.label}
-            viewedDateLabel={s.dateLabel}
-            metric={s.metric}
-            liveStationName={s.plan.liveStation?.name ?? null}
-            liveDistanceKm={s.plan.liveDistanceKm}
-            today={s.today}
-          />
+            <LazyOnVisible forceVisible={s.legacyView === 'year'}>
+              <Suspense fallback={<p className="status">Loading chart…</p>}>
+                <YearEvidence
+                  station={s.station}
+                  isPlace={s.place !== null}
+                  year={parseIso(s.date).year}
+                  homogenised={s.station?.homogenised ?? false}
+                />
+              </Suspense>
+            </LazyOnVisible>
 
-          <LazyOnVisible forceVisible={s.legacyView === 'day'}>
-            <Suspense fallback={<p className="status">Loading chart…</p>}>
-              <DayEvidence
-                date={s.date}
-                today={s.today}
-                onDateChange={s.setDate}
-                metric={s.metric}
-                onMetricChange={s.setMetric}
-                windowDays={s.windowDays}
-                onWindowChange={s.setWindowDays}
-                windowDisabled={s.place !== null}
-                points={s.points}
-                dateLabel={s.dateLabel}
-                todayValue={s.isToday ? s.todayMarkerValue : s.selectedYearValue}
-                todayYear={parseIso(s.isToday ? s.today : s.date).year}
-                homogenised={s.station?.homogenised ?? false}
-                norm={s.dayNorm}
-              />
-            </Suspense>
-          </LazyOnVisible>
+            <LazyOnVisible forceVisible={s.legacyView === 'threshold'}>
+              <Suspense fallback={<p className="status">Loading chart…</p>}>
+                <TrendEvidence
+                  station={s.station}
+                  isPlace={s.place !== null}
+                  threshold={s.threshold}
+                  onThresholdChange={s.setThreshold}
+                  homogenised={s.station?.homogenised ?? false}
+                />
+              </Suspense>
+            </LazyOnVisible>
 
-          <LazyOnVisible forceVisible={s.legacyView === 'year'}>
-            <Suspense fallback={<p className="status">Loading chart…</p>}>
-              <YearEvidence
-                station={s.station}
-                isPlace={s.place !== null}
-                year={parseIso(s.date).year}
-                homogenised={s.station?.homogenised ?? false}
-              />
-            </Suspense>
-          </LazyOnVisible>
-
-          <LazyOnVisible forceVisible={s.legacyView === 'threshold'}>
-            <Suspense fallback={<p className="status">Loading chart…</p>}>
-              <TrendEvidence
-                station={s.station}
-                isPlace={s.place !== null}
-                threshold={s.threshold}
-                onThresholdChange={s.setThreshold}
-                homogenised={s.station?.homogenised ?? false}
-              />
-            </Suspense>
-          </LazyOnVisible>
-
-          <SourceNote plan={s.plan} usesOpenMeteo={s.place !== null} />
-        </>
-      )}
+            {/* Last, because it is the widest lens: one bar per year, the whole
+                record at once, no axis to read. */}
+            <LazyOnVisible>
+              <Suspense fallback={<p className="status">Loading chart…</p>}>
+                <StripesEvidence
+                  station={s.station}
+                  isPlace={s.place !== null}
+                  homogenised={s.station?.homogenised ?? false}
+                />
+              </Suspense>
+            </LazyOnVisible>
+          </>
+        )}
+      </div>
     </main>
   );
 }

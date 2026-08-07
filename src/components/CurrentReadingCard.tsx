@@ -8,8 +8,10 @@ const METRIC_WORD: Record<Metric, string> = {
   min: 'min',
 };
 
-const fmt = (n: number) => `${n.toFixed(1)} °C`;
-const signed = (n: number) => `${n >= 0 ? '+' : '−'}${Math.abs(n).toFixed(1)} °C`;
+// Non-breaking space before the unit: in the narrow answer column "min 17.7 °C"
+// otherwise breaks after the figure and leaves the unit stranded on its own line.
+const fmt = (n: number) => `${n.toFixed(1)} °C`;
+const signed = (n: number) => `${n >= 0 ? '+' : '−'}${Math.abs(n).toFixed(1)} °C`;
 
 export interface CurrentReadingCardProps {
   placeLabel: string;
@@ -39,8 +41,8 @@ export function CurrentReadingCard({
   return (
     <section className="reading-card">
       <h2>
-        {placeLabel}
-        {latest && <> · now {fmt(latest.celsius)}</>}
+        <span className="reading-place">{placeLabel}</span>
+        {latest && <span className="reading-now"> · now {fmt(latest.celsius)}</span>}
       </h2>
 
       {liveStationName && (

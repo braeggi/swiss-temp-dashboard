@@ -4,7 +4,8 @@ import type { Headline } from '../lib/headline';
 import type { DaySoFar } from '../lib/dayAggregate';
 import { findHeatEpisodes, heatState } from '../lib/heatEpisodes';
 import { byDecade, decadeChange, heatDaysToDate, thresholdDays } from '../lib/thresholdDays';
-import { buildAnswerHeadline, buildHeatDaysTile, buildLongTermTile } from '../lib/answer';
+import { frequencyShift } from '../lib/returnPeriod';
+import { buildAnswerHeadline, buildFrequencyTile, buildHeatDaysTile, buildLongTermTile } from '../lib/answer';
 import { formatDayLabel, parseIso } from '../lib/dateUtil';
 import { CurrentReadingCard } from '../components/CurrentReadingCard';
 
@@ -49,6 +50,24 @@ export function AnswerSection({
     };
   }, [isPlace, station, effectiveSoFar, today]);
 
+  /**
+   * How much more often a day like the one being ranked happens now.
+   *
+   * Keyed off the same value the rank uses, so the two can never describe
+   * different days. The direction follows the deviation: above the normal the
+   * question is how often it gets this warm, below it how often it gets this
+   * cold — a January that shows frost disappearing is the same finding read
+   * from the other end. Without a normal there is no side to take, so the tile
+   * stays away rather than guessing "warm".
+   */
+  const frequency = useMemo(() => {
+    const { comparedValue, deviation } = headline;
+    if (isPlace || station === null || comparedValue === null || deviation === null) return null;
+    return frequencyShift(station, metric, comparedValue, deviation >= 0 ? 'warm' : 'cool');
+  }, [isPlace, station, metric, headline]);
+
+  const frequencyTile = buildFrequencyTile(frequency);
+
   return (
     <section className="answer-section">
       {answer !== null && (
@@ -70,6 +89,8 @@ export function AnswerSection({
 
       {answer !== null ? (
         <ul className="answer-tiles">
+          {/* First, because "how often" is the finding the rank cannot give. */}
+          {frequencyTile !== null && <li className="answer-tile">{frequencyTile}</li>}
           <li className="answer-tile">{answer.heatDaysTile}</li>
           <li className="answer-tile">{answer.longTermTile}</li>
         </ul>

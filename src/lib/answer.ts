@@ -1,5 +1,6 @@
 import type { HeatState } from './heatEpisodes';
 import type { DecadeSummary, YearToDate } from './thresholdDays';
+import type { FrequencyShift } from './returnPeriod';
 import { formatDayLabel } from './dateUtil';
 
 const fmt = (n: number) => `${n.toFixed(1)} °C`;
@@ -69,6 +70,54 @@ export function buildHeatDaysTile(rows: YearToDate[], year: number, dateLabel: s
   if (record === null) return `${currentPhrase}.`;
   if (record.year === year) return `${currentPhrase} — the most on record for this date.`;
   return `${currentPhrase} · ${record.year} had ${record.days} by the same date.`;
+}
+
+/** Bands where the change is not worth dressing up as a multiplier. */
+const FLAT_LOW = 0.95;
+const FLAT_HIGH = 1.05;
+
+/**
+ * "5.4× as often as it used to be — days at least this warm ran 2.1 a year in
+ * 1864–1893, 11.4 in 1996–2025."
+ *
+ * A rank says how hot today is. This says how the climate around it moved, in
+ * the one unit a reader can check against their own memory: how often.
+ *
+ * Both windows are named, and not only because "the first thirty years" starts
+ * in 1864 at one station and 1959 at the next. Without the second span, "11.4 a
+ * year" reads as this year's count rather than as a thirty-year average.
+ */
+export function buildFrequencyTile(shift: FrequencyShift | null): string | null {
+  if (shift === null) return null;
+  const { early, recent, direction, factor } = shift;
+  const kind = direction === 'warm' ? 'warm' : 'cold';
+  const ran =
+    `days at least this ${kind} ran ${early.perYear.toFixed(1)} a year in ` +
+    `${early.fromYear}–${early.toYear}, ${recent.perYear.toFixed(1)} in ` +
+    `${recent.fromYear}–${recent.toYear}`;
+
+  // A bare ratio prints "Infinity× as often" here, which is both ugly and less
+  // informative than the plain fact.
+  if (factor === null) {
+    return (
+      `Did not happen at all in ${early.fromYear}–${early.toYear} — ` +
+      `${recent.perYear.toFixed(1)} days a year at least this ${kind} in ` +
+      `${recent.fromYear}–${recent.toYear}.`
+    );
+  }
+
+  if (factor > FLAT_HIGH) {
+    const times = factor >= 10 ? factor.toFixed(0) : factor.toFixed(1);
+    return `${times}× as often as it used to be — ${ran}.`;
+  }
+
+  // "0.4× as often" reads as a multiplier of something that shrank, which is a
+  // sentence people have to translate. State the fall as a fall.
+  if (factor < FLAT_LOW) {
+    return `Down to ${Math.round(factor * 100)} % of the old rate — ${ran}.`;
+  }
+
+  return `About as often as it used to be — ${ran}.`;
 }
 
 /**

@@ -1,6 +1,6 @@
 // src/lib/chartData.test.ts
 import { describe, expect, it } from 'vitest';
-import { trendSegment, yDomain } from './chartData';
+import { trendSegment, withTodayPoint, yDomain } from './chartData';
 import type { DayPoint } from '../types';
 
 const rising: DayPoint[] = Array.from({ length: 40 }, (_, i) => ({
@@ -43,5 +43,38 @@ describe('yDomain', () => {
 
   it('falls back to a sane range with no data', () => {
     expect(yDomain([], [])).toEqual([0, 10]);
+  });
+});
+
+describe('withTodayPoint', () => {
+  const history: DayPoint[] = [
+    { year: 2023, value: 19 },
+    { year: 2024, value: 20 },
+    { year: 2025, value: 21 },
+  ];
+
+  // The bug this guards: the packed history ends at the last rebuilt year, so
+  // today's live reading was drawn only as a ReferenceDot — an overlay the
+  // scatter tooltip cannot reach. The one point a reader most wants to
+  // interrogate was the one point with no hit target.
+  it('adds today when the history does not reach it', () => {
+    expect(withTodayPoint(history, 2026, 22.4)).toEqual([
+      ...history,
+      { year: 2026, value: 22.4 },
+    ]);
+  });
+
+  it('leaves the series alone when today is already in it', () => {
+    const withCurrent = [...history, { year: 2026, value: 18 }];
+    expect(withTodayPoint(withCurrent, 2026, 22.4)).toBe(withCurrent);
+  });
+
+  // A past date highlights a year that is already plotted — nothing to add.
+  it('leaves the series alone when the marked year is a past year', () => {
+    expect(withTodayPoint(history, 2024, 20)).toBe(history);
+  });
+
+  it('leaves the series alone when there is no marker value', () => {
+    expect(withTodayPoint(history, 2026, null)).toBe(history);
   });
 });

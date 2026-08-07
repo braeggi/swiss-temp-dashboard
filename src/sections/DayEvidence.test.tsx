@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import DayEvidence from './DayEvidence';
 
 // jsdom has no ResizeObserver, and Recharts' ResponsiveContainer constructs one
@@ -39,7 +39,12 @@ describe('DayEvidence', () => {
         todayValue={null} todayYear={2026} homogenised={false} norm={null}
       />,
     );
-    for (const button of screen.getAllByRole('button', { name: /day|days/i })) {
+    // Scoped to the group, not matched by label: the date stepper's arrows are
+    // also called "… day" and are deliberately still live for a place.
+    const averaging = screen.getByRole('group', { name: 'Averaging' });
+    const buttons = within(averaging).getAllByRole('button');
+    expect(buttons).toHaveLength(3);
+    for (const button of buttons) {
       expect(button).toBeDisabled();
     }
   });

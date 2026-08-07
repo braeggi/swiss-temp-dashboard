@@ -52,3 +52,31 @@ export function formatDayLabel(iso: string): string {
   const { month, day } = parseIso(iso);
   return `${day} ${MONTHS[month - 1]}`;
 }
+
+const daysInMonth = (year: number, month: number) =>
+  month === 2 && isLeapYear(year) ? 29 : DAYS_IN_MONTH[month - 1];
+
+const iso = (year: number, month: number, day: number) =>
+  `${year}-${pad(month)}-${pad(day)}`;
+
+/**
+ * One calendar day forward or back.
+ *
+ * Done on the parsed fields rather than through `new Date(iso)`: that
+ * constructor reads a bare YYYY-MM-DD as UTC midnight, so west of Greenwich
+ * every stepped date would land on the previous day. The month-length and
+ * leap-year rules this needs are already in this file.
+ */
+export function shiftDay(date: string, step: 1 | -1): string {
+  const { year, month, day } = parseIso(date);
+
+  if (step === 1) {
+    if (day < daysInMonth(year, month)) return iso(year, month, day + 1);
+    if (month < 12) return iso(year, month + 1, 1);
+    return iso(year + 1, 1, 1);
+  }
+
+  if (day > 1) return iso(year, month, day - 1);
+  if (month > 1) return iso(year, month - 1, daysInMonth(year, month - 1));
+  return iso(year - 1, 12, 31);
+}

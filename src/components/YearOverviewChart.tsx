@@ -209,7 +209,7 @@ export function YearOverviewChart({ days, metric, year, homogenised }: YearOverv
           />
           <Line
             dataKey="current"
-            stroke="var(--accent)"
+            stroke="var(--warm)"
             strokeWidth={1.75}
             dot={false}
             isAnimationActive={false}
@@ -226,7 +226,7 @@ export function YearOverviewChart({ days, metric, year, homogenised }: YearOverv
               x={lastWithData.slot}
               y={lastWithData.current}
               r={6}
-              fill="var(--accent)"
+              fill="var(--warm)"
               stroke="var(--bg)"
               strokeWidth={2.5}
               className="today-point"
@@ -275,7 +275,7 @@ export function YearOverviewChart({ days, metric, year, homogenised }: YearOverv
           </span>
         </li>
         <li>
-          <LineSwatch stroke="var(--accent)" opacity={1} width={1.75} dot />
+          <LineSwatch stroke="var(--warm)" opacity={1} width={1.75} dot />
           <span>
             {year}
             <em>

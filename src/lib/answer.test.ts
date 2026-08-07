@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildAnswerHeadline, buildHeatDaysTile, buildLongTermTile } from './answer';
+import { buildAnswerHeadline, buildFrequencyTile, buildHeatDaysTile, buildLongTermTile } from './answer';
+import type { FrequencyShift } from './returnPeriod';
 import type { HeatEpisode, HeatState } from './heatEpisodes';
 
 function episode(overrides: Partial<HeatEpisode> = {}): HeatEpisode {
@@ -116,5 +117,61 @@ describe('buildLongTermTile', () => {
 
   it('gives the reason when there are too few decades', () => {
     expect(buildLongTermTile(null)).toBe('Not enough complete decades yet to show a long-term shift.');
+  });
+});
+
+describe('buildFrequencyTile', () => {
+  const shift = (over: Partial<FrequencyShift> = {}): FrequencyShift => ({
+    early: { fromYear: 1864, toYear: 1893, years: 30, perYear: 2.1 },
+    recent: { fromYear: 1996, toYear: 2025, years: 30, perYear: 11.4 },
+    threshold: 24.6,
+    direction: 'warm',
+    factor: 11.4 / 2.1,
+    ...over,
+  });
+
+  it('leads with the factor, because that is the finding', () => {
+    const tile = buildFrequencyTile(shift());
+    expect(tile).toMatch(/^5\.4× as often/);
+    expect(tile).toContain('2.1');
+    expect(tile).toContain('11.4');
+  });
+
+  it('names both windows, since "the first thirty years" differs per station', () => {
+    const tile = buildFrequencyTile(shift());
+    expect(tile).toContain('1864–1893');
+    expect(tile).toContain('1996–2025');
+  });
+
+  it('says so plainly when the early window never saw such a day', () => {
+    // "Infinity× as often" is what a bare ratio would print here.
+    const tile = buildFrequencyTile(shift({ early: { fromYear: 1864, toYear: 1893, years: 30, perYear: 0 }, factor: null }));
+    expect(tile).not.toMatch(/Infinity|NaN/);
+    expect(tile).toMatch(/did not happen/i);
+  });
+
+  it('describes a fall as a fall, not as a fraction of a multiplier', () => {
+    // Frost days becoming rarer is the same evidence read from the cool end.
+    const tile = buildFrequencyTile(shift({
+      direction: 'cool',
+      early: { fromYear: 1864, toYear: 1893, years: 30, perYear: 42 },
+      recent: { fromYear: 1996, toYear: 2025, years: 30, perYear: 18.3 },
+      factor: 18.3 / 42,
+    }));
+    expect(tile).not.toContain('×');
+    expect(tile).toMatch(/cold/);
+    expect(tile).toContain('44 %');
+  });
+
+  it('does not dress up a record that barely moved', () => {
+    const tile = buildFrequencyTile(shift({
+      recent: { fromYear: 1996, toYear: 2025, years: 30, perYear: 2.15 },
+      factor: 2.15 / 2.1,
+    }));
+    expect(tile).toMatch(/^About as often/);
+  });
+
+  it('has nothing to say without a shift to report', () => {
+    expect(buildFrequencyTile(null)).toBeNull();
   });
 });

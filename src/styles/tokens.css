@@ -1,0 +1,136 @@
+/* Neo-Swiss token layer.
+   Three groups, kept apart on purpose: what the page is made of (surface, ink),
+   how it is divided (four line weights), and what things mean (one interaction
+   signal, one diverging data pair). Nothing outside this file names a colour. */
+
+:root {
+  color-scheme: light dark;
+
+  /* ---- Surface and ink ---------------------------------------------- */
+  --bg: #f2f2ef;          /* paper, not white — white makes the rules shout */
+  --fg: #0d0f12;          /* 17.1:1 */
+  --muted: #6a6f77;       /*  4.5:1 — AA, so captions are never decorative */
+
+  /* ---- Division. Four weights, four jobs, never mixed ---------------- */
+  --rule: var(--fg);      /* 2px: opens a block. The page's structural beat. */
+  --line: #cfcfc9;        /* 1px: secondary separation inside a block */
+  --grid: #deded8;        /* chart gridlines — one shade off the surface */
+  --axis: #b9b9b2;        /* chart axis and crosshair */
+
+  /* ---- Meaning ------------------------------------------------------
+     The interaction signal and the data poles must never be confusable: a
+     button and a data mark would then claim the same thing. Validated as a
+     set with scripts/validate_palette.js from the dataviz skill —
+
+       warm ↔ cool     CVD ΔE 19.3 (protan), normal 30.3, both ≥ 3:1
+       signal ↔ cool   CVD ΔE 18.4 (protan), normal 21.8
+
+     which is why cool is petrol and not the blue it used to be. Blue now
+     belongs to the interface alone. */
+  --signal: #1a4bff;      /* labels, focus, active state. Never a data mark. */
+  --warm: #d93b12;        /* data: the warm pole */
+  --cool: #0086a0;        /* data: the cool pole */
+
+  /* Chart marks only need 3:1; text needs 4.5:1, and the pole colours sit
+     just under it on this surface. These are the same hues stepped down for
+     running text — not a second palette. */
+  --warm-ink: #c23610;    /* 4.9:1 */
+  --cool-ink: #00758c;    /* 4.8:1 */
+
+  /* ---- The warming-stripe ramp --------------------------------------
+     Nine diverging steps around a neutral middle, built from the same two
+     poles as the data ink so the page has one temperature vocabulary.
+
+     Two things were designed in rather than discovered late. Lightness is
+     monotonic on each half — that is the check a ramp answers to, not the
+     categorical one. And chroma stays high right up to the middle: an earlier
+     version faded it toward the neutral, which put −1 and +1 at ΔE 9.3 for
+     *normal* colour vision. Two stripes meaning opposite things looked alike
+     to everyone. Held high, every symmetric pair now clears the readable
+     floor — normal 16.5–22.0, protan 9.0–10.6, adjacent steps 11.2–15.2. */
+  --stripe-n4: #004352;
+  --stripe-n3: #326776;
+  --stripe-n2: #5b8d9c;
+  --stripe-n1: #87b4c2;
+  --stripe-0:  #d9d5ca;
+  --stripe-1:  #f09781;
+  --stripe-2:  #d07058;
+  --stripe-3:  #af4a33;
+  --stripe-4:  #8c2408;
+
+  /* ---- Type ---------------------------------------------------------- */
+  --font: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  --t-mega: clamp(3rem, 8vw, 4.5rem);  /* the rank figure, and nothing else */
+  --t-xl: 1.5rem;
+  --t-lg: 1.0625rem;
+  --t-md: 1rem;
+  --t-sm: 0.875rem;
+  --t-xs: 0.8125rem;
+  --t-label: 0.625rem;                 /* 10px versal — the smallest thing set */
+
+  --track-label: 0.13em;
+  --track-tight: -0.02em;
+  --track-mega: -0.05em;
+
+  /* ---- Rhythm. Everything is a multiple of 4px. --------------------- */
+  --s1: 0.25rem;
+  --s2: 0.5rem;
+  --s3: 0.75rem;
+  --s4: 1rem;
+  --s5: 1.5rem;
+  --s6: 2rem;
+  --s7: 3rem;
+
+  --rule-w: 2px;
+  --hair: 1px;
+
+  /* Neo-Swiss is square. The one exception is the focus ring, which needs to
+     read as an overlay rather than as part of the box. */
+  --radius: 0;
+
+  --dur: 120ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Dark is stepped, not flipped: the light poles sit outside the dark lightness
+   band (OKLCH L 0.48–0.67), so both were re-picked against #0c0d10 and
+   re-validated as their own set —
+
+     warm ↔ cool     CVD ΔE 19.4 (deutan), normal 30.1, both ≥ 3:1
+     signal ↔ cool   CVD ΔE 12.4 (deutan), normal 17.0
+
+   The signal moves toward indigo here: at dark-mode lightness a pure blue and
+   the petrol pole collapse to ΔE 13.8, under the readable floor. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0c0d10;
+    --fg: #ecedef;        /* 16.6:1 */
+    --muted: #8b9099;     /*  6.1:1 */
+
+    --line: #2a2d33;
+    --grid: #24262c;
+    --axis: #3a3e46;
+
+    --signal: #7b83ff;    /* 6.0:1 */
+    --warm: #ee5c2c;      /* 5.7:1 — clears AA, so it doubles as --warm-ink */
+    --cool: #1aa5ba;      /* 6.6:1 */
+
+    --warm-ink: #ee5c2c;
+    --cool-ink: #1aa5ba;
+
+    /* Re-stepped, not inverted: on a dark ground the neutral is the *darkest*
+       step and the extremes are the bright ones, so the lightness profile
+       turns over. Re-validated as its own set — symmetric pairs normal
+       18.9–25.3, deutan 12.5–17.3. */
+    --stripe-n4: #7fe0f0;
+    --stripe-n3: #59b4c3;
+    --stripe-n2: #348a98;
+    --stripe-n1: #0f626e;
+    --stripe-0:  #31343b;
+    --stripe-1:  #833717;
+    --stripe-2:  #ac532e;
+    --stripe-3:  #d57149;
+    --stripe-4:  #ff9166;
+  }
+}

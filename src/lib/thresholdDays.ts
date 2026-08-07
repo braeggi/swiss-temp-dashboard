@@ -1,4 +1,4 @@
-import type { PackedStation } from '../types';
+import type { Metric, PackedStation } from '../types';
 import { SLOTS_PER_YEAR, decodeValue, metricArray, slotOfYear } from './packed';
 
 /**
@@ -88,18 +88,27 @@ function countThroughSlot(
  * threshold series is shorter than the station's mean series — that is missing
  * history, not a bug, and the caller should surface the real span.
  */
-export function thresholdDays(st: PackedStation, key: ThresholdKey): ThresholdYear[] {
-  const spec = THRESHOLDS.find((t) => t.key === key);
-  if (spec === undefined) throw new Error(`Unknown threshold: ${key}`);
+/**
+ * Per-year counts of days satisfying an arbitrary predicate.
+ *
+ * The generic half of `thresholdDays`, split out so a caller with its own
+ * threshold — the reader's day compared against history, say — gets the same
+ * completeness rule rather than a second copy of it that can drift.
+ */
+export function countByYear(
+  st: PackedStation,
+  metric: Metric,
+  test: (v: number) => boolean,
+): ThresholdYear[] {
   // Was a two-way ternary, which silently fell through to `min` for any
   // metric that is not `max`. metricArray covers all three exhaustively, so
   // adding a mean-based threshold can no longer read the wrong series.
-  const arr = metricArray(st, spec.metric);
+  const arr = metricArray(st, metric);
 
   const out: ThresholdYear[] = [];
   for (let year = st.fromYear; year <= st.toYear; year++) {
     const base = (year - st.fromYear) * SLOTS_PER_YEAR;
-    const { daysWithData, hits } = countThroughSlot(arr, base, SLOTS_PER_YEAR - 1, spec.test);
+    const { daysWithData, hits } = countThroughSlot(arr, base, SLOTS_PER_YEAR - 1, test);
     out.push({
       year,
       daysWithData,
@@ -107,6 +116,12 @@ export function thresholdDays(st: PackedStation, key: ThresholdKey): ThresholdYe
     });
   }
   return out;
+}
+
+export function thresholdDays(st: PackedStation, key: ThresholdKey): ThresholdYear[] {
+  const spec = THRESHOLDS.find((t) => t.key === key);
+  if (spec === undefined) throw new Error(`Unknown threshold: ${key}`);
+  return countByYear(st, spec.metric, spec.test);
 }
 
 /**

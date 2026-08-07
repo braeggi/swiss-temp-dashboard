@@ -1,6 +1,6 @@
 // src/lib/dateUtil.test.ts
 import { describe, expect, it } from 'vitest';
-import { formatDayLabel, isIsoDate, parseIso, todayIso } from './dateUtil';
+import { formatDayLabel, isIsoDate, parseIso, shiftDay, todayIso } from './dateUtil';
 
 describe('todayIso', () => {
   it('formats a local date as YYYY-MM-DD', () => {
@@ -94,5 +94,36 @@ describe('isIsoDate — calendar semantics, not just shape', () => {
     expect(isIsoDate('2026-02-29')).toBe(false);  // common
     expect(isIsoDate('2000-02-29')).toBe(true);   // divisible by 400
     expect(isIsoDate('1900-02-29')).toBe(false);  // divisible by 100, not 400
+  });
+});
+
+describe('shiftDay', () => {
+  it('steps within a month', () => {
+    expect(shiftDay('2026-08-07', 1)).toBe('2026-08-08');
+    expect(shiftDay('2026-08-07', -1)).toBe('2026-08-06');
+  });
+
+  it('rolls over a month boundary in both directions', () => {
+    expect(shiftDay('2026-04-30', 1)).toBe('2026-05-01');
+    expect(shiftDay('2026-05-01', -1)).toBe('2026-04-30');
+  });
+
+  it('knows how long February is', () => {
+    expect(shiftDay('2024-02-28', 1)).toBe('2024-02-29');  // leap
+    expect(shiftDay('2026-02-28', 1)).toBe('2026-03-01');  // common
+    expect(shiftDay('2024-03-01', -1)).toBe('2024-02-29');
+    expect(shiftDay('1900-03-01', -1)).toBe('1900-02-28'); // divisible by 100, not 400
+  });
+
+  it('rolls over a year boundary in both directions', () => {
+    expect(shiftDay('2025-12-31', 1)).toBe('2026-01-01');
+    expect(shiftDay('2026-01-01', -1)).toBe('2025-12-31');
+  });
+
+  // new Date('2026-08-07') is UTC midnight, so anywhere west of Greenwich a
+  // Date-based implementation lands a day early. This is the regression guard.
+  it('does not depend on the local time zone', () => {
+    expect(shiftDay('2026-01-01', 1)).toBe('2026-01-02');
+    expect(shiftDay('2026-12-31', -1)).toBe('2026-12-30');
   });
 });
